@@ -1,12 +1,12 @@
 %{
-	#include"node.h"
+	#include"TreeNode.h"
 	#include"lex.yy.c"
-	Node* root;
+	PtrToNode root;
 %}
 
 /*types*/
 %union {
-	Node* node;
+	PtrToNode node;
 };
 
 /*tokens*/
@@ -151,6 +151,9 @@ int main(int argc, char** argv)
 	yylineno=1;
 	yyrestart(f);
 	yyparse();
+    printf("PRINT_TREE\n");
+	printTree(root,1);
+    /*
 	if(errorFlag){
 		//printTree(root,0);	
 		initTable();
@@ -168,6 +171,7 @@ int main(int argc, char** argv)
 		initReg();
 		printAllCode(argv[2]);
 	}
+    */
 	return 0;
 }
 

@@ -1,5 +1,5 @@
 %{
-	#include"node.h"
+	#include"TreeNode.h"
 	#include"parser.tab.h"
 	int errorFlag=1;
 %}
@@ -26,39 +26,39 @@ integer {HEX_CONSTANT}|{OCT_CONSTANT}|{DEC_CONSTANT}
 
 %%
 {space} 	{/*space*/}
-{integer} 	{yylval.node=initNode("INT",yytext);return INT;}
-{float} 	{/*printf("float:%s\n",yytext)*/yylval.node=initNode("FLOAT",yytext);return FLOAT;}
-";" 		{yylval.node=initNode("SEMI",yytext);return SEMI;}
-"," 		{yylval.node=initNode("COMMA",yytext);return COMMA;}
-"=" 		{yylval.node=initNode("ASSIGNOP",yytext);return ASSIGNOP;}
-">" 		{yylval.node=initNode("RELOP",yytext);return RELOP;}
-"<" 		{yylval.node=initNode("RELOP",yytext);return RELOP;}
-">=" 		{yylval.node=initNode("RELOP",yytext);return RELOP;}
-"<=" 		{yylval.node=initNode("RELOP",yytext);return RELOP;}
-"==" 		{yylval.node=initNode("RELOP",yytext);return RELOP;}
-"!=" 		{yylval.node=initNode("RELOP",yytext);return RELOP;}
-"+" 		{yylval.node=initNode("PLUS",yytext);return PLUS;}
-"-" 		{yylval.node=initNode("MINUS",yytext);return MINUS;}
-"*" 		{yylval.node=initNode("MUL",yytext);return MUL;}
-"/" 		{yylval.node=initNode("DIV",yytext);return DIV;}
-"&&" 		{yylval.node=initNode("AND",yytext);return AND;}
-"||" 		{yylval.node=initNode("OR",yytext);return OR;}
-"." 		{yylval.node=initNode("DOT",yytext);return DOT;}
-"!" 		{yylval.node=initNode("NOT",yytext);return NOT;}
-int|float 	{yylval.node=initNode("TYPE",yytext);return TYPE;}
-"(" 		{yylval.node=initNode("LP",yytext);return LP;}
-")" 		{yylval.node=initNode("RP",yytext);return RP;}
-"[" 		{yylval.node=initNode("LB",yytext);return LB;}
-"]" 		{yylval.node=initNode("RB",yytext);return RB;}
-"{" 		{yylval.node=initNode("LC",yytext);return LC;}
-"}" 		{yylval.node=initNode("RC",yytext);return RC;}
-struct 		{yylval.node=initNode("STRUCT",yytext);return STRUCT;}
-return 		{yylval.node=initNode("RETURN",yytext);return RETURN;}
-if			{yylval.node=initNode("IF",yytext);return IF;}
-else 		{yylval.node=initNode("ELSE",yytext);return ELSE;}
-while 		{yylval.node=initNode("WHILE",yytext);return WHILE;}	
+{integer} 	{yylval.node=NewNode("INT",yytext);return INT;}
+{float} 	{/*printf("float:%s\n",yytext)*/yylval.node=NewNode("FLOAT",yytext);return FLOAT;}
+";" 		{yylval.node=NewNode("SEMI",yytext);return SEMI;}
+"," 		{yylval.node=NewNode("COMMA",yytext);return COMMA;}
+"=" 		{yylval.node=NewNode("ASSIGNOP",yytext);return ASSIGNOP;}
+">" 		{yylval.node=NewNode("RELOP",yytext);return RELOP;}
+"<" 		{yylval.node=NewNode("RELOP",yytext);return RELOP;}
+">=" 		{yylval.node=NewNode("RELOP",yytext);return RELOP;}
+"<=" 		{yylval.node=NewNode("RELOP",yytext);return RELOP;}
+"==" 		{yylval.node=NewNode("RELOP",yytext);return RELOP;}
+"!=" 		{yylval.node=NewNode("RELOP",yytext);return RELOP;}
+"+" 		{yylval.node=NewNode("PLUS",yytext);return PLUS;}
+"-" 		{yylval.node=NewNode("MINUS",yytext);return MINUS;}
+"*" 		{yylval.node=NewNode("MUL",yytext);return MUL;}
+"/" 		{yylval.node=NewNode("DIV",yytext);return DIV;}
+"&&" 		{yylval.node=NewNode("AND",yytext);return AND;}
+"||" 		{yylval.node=NewNode("OR",yytext);return OR;}
+"." 		{yylval.node=NewNode("DOT",yytext);return DOT;}
+"!" 		{yylval.node=NewNode("NOT",yytext);return NOT;}
+int|float 	{yylval.node=NewNode("TYPE",yytext);return TYPE;}
+"(" 		{yylval.node=NewNode("LP",yytext);return LP;}
+")" 		{yylval.node=NewNode("RP",yytext);return RP;}
+"[" 		{yylval.node=NewNode("LB",yytext);return LB;}
+"]" 		{yylval.node=NewNode("RB",yytext);return RB;}
+"{" 		{yylval.node=NewNode("LC",yytext);return LC;}
+"}" 		{yylval.node=NewNode("RC",yytext);return RC;}
+struct 		{yylval.node=NewNode("STRUCT",yytext);return STRUCT;}
+return 		{yylval.node=NewNode("RETURN",yytext);return RETURN;}
+if			{yylval.node=NewNode("IF",yytext);return IF;}
+else 		{yylval.node=NewNode("ELSE",yytext);return ELSE;}
+while 		{yylval.node=NewNode("WHILE",yytext);return WHILE;}	
 \n			{/*line end*/}
-{id} 		{yylval.node=initNode("ID",yytext);return ID;}
+{id} 		{yylval.node=NewNode("ID",yytext);return ID;}
 .			{errorFlag=0;printf("Error type A at line %d: Mysterious character '%s'\n",yylineno,yytext);}
 %%
 
