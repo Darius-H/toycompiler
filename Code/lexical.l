@@ -1,6 +1,6 @@
 %{
 	#include"TreeNode.h"
-	#include"parser.tab.h"
+	#include"syntax.tab.h"
 	int errorFlag=1;
 	extern FILE* yyin;
 	static void comment(FILE* f);

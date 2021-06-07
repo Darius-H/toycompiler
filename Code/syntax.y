@@ -46,7 +46,7 @@ ExtDef	:	Specifier ExtDecList SEMI 	{$$=NewNode("ExtDef","");addChild($$,$3);add
       	|	Specifier SEMI			{$$=NewNode("ExtDef","");addChild($$,$2);addChild($$,$1);}
 		|	Specifier FunDec SEMI	{$$=NewNode("ExtDef","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 		|	Specifier FunDec CompSt		{$$=NewNode("ExtDef","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
-		| 	error SEMI			{errorFlag=0;/*printf("%sExtDef:error SEMI\n",$$->value);i*/}
+		| 	error SEMI			{errorFlag=0;}
 		;
 ExtDecList	:	VarDec			{$$=NewNode("ExtDecList","");addChild($$,$1);}
 	   	|	VarDec COMMA ExtDecList	{$$=NewNode("ExtDecList","");addChild($$,$3);addChild($$,$2);addChild($$,$1);} 
@@ -76,8 +76,6 @@ VarList	:	ParamDec COMMA VarList	{$$=NewNode("VarList","");addChild($$,$3);addCh
 		|	ParamDec		{$$=NewNode("VarList","");addChild($$,$1);}
 		;
 ParamDec	:	Specifier VarDec	{$$=NewNode("ParamDec","");addChild($$,$2);addChild($$,$1);}
-		/*|	error COMMA	{errorFlag=0;/*printf("%sParamDec COMMA\n",$$->value);/}*/
-		/*|	error RP	{errorFlag=0;/*printf("%sParamDec RB\n",$$->value);/}*/
 		;
 /*Statements*/	
 CompSt	:	LC DefList StmtList RC		{$$=NewNode("CompSt","");addChild($$,$4);addChild($$,$3);addChild($$,$2);addChild($$,$1);}
@@ -93,15 +91,13 @@ Stmt:	Exp SEMI		{$$=NewNode("Stmt","");addChild($$,$2);addChild($$,$1);}
 	|	IF LP Exp RP Stmt ELSE Stmt	{$$=NewNode("Stmt","");addChild($$,$7);addChild($$,$6);addChild($$,$5);addChild($$,$4);addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 	|	WHILE LP Exp RP Stmt	{$$=NewNode("Stmt","");addChild($$,$5);addChild($$,$4);addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 	|	error RP		{errorFlag=0;}
-	| 	error SEMI		{errorFlag=0;/*printf("%sStmt SEMI\n",$$->value);*/}
+	| 	error SEMI		{errorFlag=0;}
 	;
 /*Local Definitions*/
 DefList	:	Def DefList		{$$=NewNode("DefList","");addChild($$,$2);addChild($$,$1);}
 		|	/*empty*/		{$$=NewNode("DefList","");}	
-		/*|	error SEMI		{errorFlag=0;/*printf("%sDef\n",$$->value);}*/
 		;
 Def	:	Specifier DecList SEMI	{$$=NewNode("Def","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
-		/*	error SEMI		{errorFlag=0;/*printf("%sDef\n",$$->value);*/
 		;
 DecList	:	Dec			{$$=NewNode("DecList","");addChild($$,$1);}
 		|	Dec COMMA DecList	{$$=NewNode("DecList","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
@@ -128,9 +124,6 @@ Exp :	Exp ASSIGNOP Exp	{$$=NewNode("Exp","");addChild($$,$3);addChild($$,$2);add
 	|	ID			{$$=NewNode("Exp","");addChild($$,$1);}	
 	|	INT			{$$=NewNode("Exp","");addChild($$,$1);}
 	|	FLOAT			{$$=NewNode("Exp","");addChild($$,$1);}
-/*	|	error RP		{errorFlag=0;printf("%sExp RP\n",$$->value);}
-/*	|	error RB		{errorFlag=0;printf("%sExp RB\n",$$->value);}
-	|	error SEMI		{errorFlag=0;printf("%sExp SIME\n",$$->value);}*/
 	;
 Args:	Exp COMMA Args		{$$=NewNode("Args","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 	|	Exp			{$$=NewNode("Args","");addChild($$,$1);}
