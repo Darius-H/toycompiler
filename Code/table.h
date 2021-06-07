@@ -41,17 +41,17 @@ struct VarList_
 	Type type;
 	// open hashing
 	VarList next; // 哈希表同一表项中所构成的链表
-	VarList next_param;
+	VarList next_param;//函数的下一参数或结构体的下一变量
 };
 
 struct FuncType_
 {
-	char *name;
-	bool isDefined;
-	int row;
+	char *name;//函数名
+	bool isDefined;//函数可只声明不定义
+	int row;//函数最初被识别时在编辑器中的行，可能是声明也可能是定义
 	Type returnType;
 	VarList param; // 参数列表
-	FuncType next;
+	FuncType next;// 哈希表同一表项中所构成的链表
 };
 
 

@@ -35,8 +35,9 @@ int insertVar(VarList vl) {
 	return 0;
 }
 
-// insertFunc: 将函数插入函数哈希表
-// return:
+// insertFunc: 将函数插入函数哈希表。注意c语言不支持重载
+/* return: -1: 不插入(函数名为NULL), 1: 函数已被定义, 2:插入定义时定义和声明不匹配 
+3:插入声明时定义和声明不匹配 4:重复的声明参数或返回值不相同 0: 插入成功 */
 int insertFunc(FuncType f) {
 	if(f->name == NULL)
 		return -1;
@@ -61,7 +62,7 @@ int insertFunc(FuncType f) {
 						cur->isDefined = true;
 						return 0;
 					}
-				// 如果现在要插入一个声明
+				// 如果现在要插入一个声明,注意重复的声明不会报错
 				} else {
 					// 如果插入的声明和之前已经存在的参数或返回值不同
 					if(!isTypeEqual(cur->returnType, f->returnType) || !isParamEqual(cur->param, f->param)) {
@@ -99,14 +100,15 @@ void insertParam(FuncType f) {
 	}
 }
 
+//类型检查
 bool isTypeEqual(Type t1, Type t2) {
-	if(t1->type == BASIC && t2->type == CONSTANT || t1->type == CONSTANT && t2->type == BASIC) {
+	if(t1->type == BASIC && t2->type == CONSTANT || t1->type == CONSTANT && t2->type == BASIC) {//常数赋值或相等判断
 		if(t1->type_info.basic != t2->type_info.basic) {
 			return false;
 		}
-	} else if(t1->type != t2->type) {
+	} else if(t1->type != t2->type) {//变量类型不同
 		return false;
-	} else {
+	} else {//变量类型相同
 		if(t1->type == BASIC) {
 			if(t1->type_info.basic != t2->type_info.basic)
 				return false;
@@ -128,7 +130,7 @@ bool isTypeEqual(Type t1, Type t2) {
 	}
 	return true;
 }
-
+//检查参数列表是否相同(只检查参数类型，允许参数名不同)
 bool isParamEqual(VarList v1, VarList v2) {
 	if(v1 == NULL && v2 == NULL)
 		return true;
@@ -139,7 +141,7 @@ bool isParamEqual(VarList v1, VarList v2) {
 	else
 		return false;
 }
-
+//检查变量表中是否存在该变量，不存在则返回null，存在则返回地址
 VarList findSymbol(char *name) {
 	unsigned int index = hash_pjw(name);
 	if(varTable[index] == NULL)
@@ -151,9 +153,8 @@ VarList findSymbol(char *name) {
 		cur = cur->next;
 	}
 	return NULL;
-	// ? next_param是干什么用的
 }
-
+//检查函数表中是否存在该函数，不存在则返回null，存在则返回地址
 FuncType findFunc(char *name) {
 	unsigned int index = hash_pjw(name);
 	if(funcTable[index] == NULL)
