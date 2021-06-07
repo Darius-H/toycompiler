@@ -152,7 +152,7 @@ int main(int argc, char** argv)
 	yyrestart(f);
 	yyparse();
     printf("PRINT_TREE\n");
-	printTree(root,1);
+	printTree(root,0);
     /*
 	if(errorFlag){
 		//printTree(root,0);	

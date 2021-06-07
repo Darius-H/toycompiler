@@ -1,11 +1,12 @@
 #include"TreeNode.h"
 extern int yylineno;
 /*init a Node and allocate space for it*/
+
 PtrToNode NewNode(char *name,char *value)
 {
 	PtrToNode node= malloc(sizeof(Node));
-	strcpy(node->name,name);
-	strcpy(node->value,value);
+	Mystrcpy(node->name,name,MAX_NAME);
+	Mystrcpy(node->value,value,MAX_VALUE);
 	node->children=NULL;
 	node->next=NULL;
     node->row=yylineno;
@@ -40,10 +41,10 @@ void addChild(PtrToNode f,PtrToNode c)
 void printTree(PtrToNode r,int count)
 {
 	if(r==NULL)return;
-	if(r->children==NULL)		//it's a token
+	if(r->children==NULL)		//终结符
 	{	
 		int i=0;		
-		for(;i<count;i++)	// retract 
+		for(;i<count;i++)	// 缩进
 		{
 			printf("  ");
 		}
@@ -56,14 +57,13 @@ void printTree(PtrToNode r,int count)
 				printf("%s: %f\n",r->name,atof(r->value));
 			else
 				printf("%s: %s\n",r->name,r->value);
-
 		}
 		else
 		{
 			printf("%s\n",r->name);
 		}
 	}
-	else 				//non-terminal
+	else 				//非终结符
 	{
 		int i=0;
 		for(;i<count;i++)
@@ -72,13 +72,10 @@ void printTree(PtrToNode r,int count)
 		}
 		printf("%s(%d)\n",r->name,r->row);
 		Node *p=r->children;
-		//traverse the child nodes
+		//遍历孩子节点
 		while(p!=NULL){
-			printTree(p,count+1);
-			//PtrToNode temp=p;
+			printTree(p,count+1);//下一层缩进增加
 			p=p->next;
-			//free(temp);
-			//temp=NULL;
 		}
 	}
 	return;

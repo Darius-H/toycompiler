@@ -2,6 +2,8 @@
 	#include"TreeNode.h"
 	#include"parser.tab.h"
 	int errorFlag=1;
+	extern FILE* yyin;
+	static void comment(FILE* f);
 %}
 
 space [ \t]+
@@ -60,8 +62,23 @@ while 		{yylval.node=NewNode("WHILE",yytext);return WHILE;}
 \n			{/*line end*/}
 {id} 		{yylval.node=NewNode("ID",yytext);return ID;}
 .			{errorFlag=0;printf("Error type A at line %d: Mysterious character '%s'\n",yylineno,yytext);}
+"/*"		{comment(yyin);}
 %%
 
 int yywrap(){
    return 1;
+}
+
+static void comment(FILE* f)//读取注释，直到注释结束
+{
+    int c;
+    while ((c = input()) != 0 && c!=EOF){//使用getchar()会一直收到-1，-1代表EOF，说明重定向没有将文件流传入stdin
+        if (c == '*')
+        {
+            while ((c = input()) == '*');
+            if (c == '/')return;//找到注释结尾
+            if (c == 0)break;//字符串结尾
+        }
+    }//字符串结尾
+    yyerror("unterminated comment");
 }

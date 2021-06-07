@@ -1,6 +1,7 @@
 #ifndef _TREE_NODE_H
 #define _TREE_NODE_H
-
+#define MAX_NAME 32
+#define MAX_VALUE 32
 #include<stdio.h> 
 #include<stdlib.h>
 #include<string.h> 
@@ -9,8 +10,8 @@
  * */
 typedef struct TreeNode{ 
 	int row; 
-	char name[32];
-	char value[32]; 
+	char name[MAX_NAME];
+	char value[MAX_VALUE]; 
 	struct TreeNode *children; 
 	struct TreeNode *next; 
 }Node;
