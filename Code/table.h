@@ -16,11 +16,11 @@ typedef struct FuncType_* FuncType;
 
 struct Type_
 {
-	enum { BASIC, ARRAY, STRUCTURE, CONSTANT } type;
+	enum { BASIC, ARRAY, STRUCTURE } type;
 	union
 	{
 		// 基本类型信息
-		int basic;
+		enum { INT, FLOAT } basic;
 		// 数组类型信息: 元素类型与数组大小
 		struct { Type element; int size; } array;
 		// 结构体类型信息
@@ -41,7 +41,7 @@ struct VarList_
 	Type type;
 	// open hashing
 	VarList next; // 哈希表同一表项中所构成的链表
-	VarList next_param;//函数的下一参数或结构体的下一变量
+	VarList next_field; // 结构体中连接所有成员变量的链表
 };
 
 struct FuncType_
