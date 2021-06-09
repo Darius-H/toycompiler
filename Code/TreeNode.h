@@ -10,8 +10,8 @@
  * */
 typedef struct TreeNode{ 
 	int row; 
-	char name[MAX_NAME];
-	char value[MAX_VALUE]; 
+	char name[MAX_NAME];//文法中的名字
+	char value[MAX_VALUE]; //终结符的value是其yytext，用于区分变量名以及确定常数值
 	struct TreeNode *children; 
 	struct TreeNode *next; 
 }Node;

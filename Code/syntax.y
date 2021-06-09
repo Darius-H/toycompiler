@@ -66,7 +66,7 @@ Tag	:	ID	{$$=NewNode("Tag","");addChild($$,$1);}
     	;
 /*Declarators*/
 VarDec	:	ID	{$$=NewNode("VarDec","");addChild($$,$1);}
-       	| 	VarDec LB INT RB	 {$$=NewNode("VarDec","");addChild($$,$4);addChild($$,$3);addChild($$,$2);addChild($$,$1);}
+       	| 	VarDec LB INT RB	 {/*数组定义*/$$=NewNode("VarDec","");addChild($$,$4);addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 		;
 FunDec	: 	ID LP VarList RP	 {$$=NewNode("FunDec","");addChild($$,$4);addChild($$,$3);addChild($$,$2);addChild($$,$1);}
        	|	ID LP RP		 {$$=NewNode("FunDec","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
@@ -75,13 +75,13 @@ FunDec	: 	ID LP VarList RP	 {$$=NewNode("FunDec","");addChild($$,$4);addChild($$
 VarList	:	ParamDec COMMA VarList	{$$=NewNode("VarList","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 		|	ParamDec		{$$=NewNode("VarList","");addChild($$,$1);}
 		;
-ParamDec	:	Specifier VarDec	{$$=NewNode("ParamDec","");addChild($$,$2);addChild($$,$1);}
+ParamDec:	Specifier VarDec	{$$=NewNode("ParamDec","");addChild($$,$2);addChild($$,$1);}
 		;
 /*Statements*/	
 CompSt	:	LC DefList StmtList RC		{$$=NewNode("CompSt","");addChild($$,$4);addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 		|   error RC	{errorFlag=0;/*printf("%sCompSt RC\n",$$->value);*/}
 		;
-StmtList	:	Stmt StmtList		{$$=NewNode("StmtList","");addChild($$,$2);addChild($$,$1);}
+StmtList:	Stmt StmtList		{$$=NewNode("StmtList","");addChild($$,$2);addChild($$,$1);}
 	 	|	/*empty*/		{$$=NewNode("StmtList","");}
 		;		
 Stmt:	Exp SEMI		{$$=NewNode("Stmt","");addChild($$,$2);addChild($$,$1);}
@@ -98,7 +98,7 @@ DefList	:	Def DefList		{$$=NewNode("DefList","");addChild($$,$2);addChild($$,$1)
 		|	/*empty*/		{$$=NewNode("DefList","");}	
 		;
 Def	:	Specifier DecList SEMI	{$$=NewNode("Def","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
-		;
+	;
 DecList	:	Dec			{$$=NewNode("DecList","");addChild($$,$1);}
 		|	Dec COMMA DecList	{$$=NewNode("DecList","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 		;
