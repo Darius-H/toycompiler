@@ -538,7 +538,10 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 	else if(!strcmp(child->name,"IF")){
 		//还需改动,实现跳转功能
 		child=child->next->next;//Exp
-		Exp(child);
+		Type t=Exp(child);
+		if(t!=NULL&&(t->type!=BASIC)){//t==NULL的话说明在Exp函数中已经报错了
+			printf("Error at line %d: type %s is not allowed for if condition",child->row,Type2String(t));
+		}
 		child=child->next->next;//Stmt
 		Stmt(child,return_type);
 		child=child->next;//else或NULL
@@ -548,9 +551,12 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 		}
 	}
 	else if(!strcmp(child->name,"WHILE")){
-		//还需改动,实现跳转功能
+		//还需改动,实现停止循环功能
 		child=child->next->next;//Exp
-		Exp(child);
+		Type t=Exp(child);
+		if(t!=NULL&&(t->type!=BASIC)){//t==NULL的话说明在Exp函数中已经报错了
+			printf("Error at line %d: type %s is not allowed for while condition",child->row,Type2String(t));
+		}
 		child=child->next->next;//Stmt
 		Stmt(child,return_type);
 	}
@@ -559,11 +565,91 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 	}
 }
 
+/*Exp ->Exp ASSIGNOP Exp	
+    |	Exp AND Exp		
+	| 	Exp OR Exp		
+	|	Exp RELOP Exp		
+	|	Exp PLUS Exp		
+	|	Exp MINUS Exp		
+	|	Exp MUL Exp		
+	|	Exp DIV Exp		
+	| 	LP Exp RP		
+	|	MINUS Exp		
+	|	NOT Exp			
+	|	ID LP Args RP		
+	|	ID LP RP		
+	|	Exp LB Exp RB		
+	|	Exp DOT ID		
+	|	ID			
+	|	INT			
+	|	FLOAT			
+	;*/
+//返回值要说明Exp的值的类型
 Type Exp(Node *n){
+	Node *child=n->children;
+	if(!strcmp(child->name,"Exp")){
+		if(!strcmp(child->name,"LB")){//array
 
+		}
+		else if(!strcmp(child->name,"DOT")){//struct
+		
+		}
+		else{//binary exp
+			BinaryExp(child,child->next,child->next->next);
+		}
+	}
+	else if(!strcmp(child->name,"LP")){
 
+	}
+	else if(!strcmp(child->name,"MINUS")){
+
+	}
+	else if(!strcmp(child->name,"NOT")){
+
+	}
+	else if(!strcmp(child->name,"ID")){
+		if(child->next!=NULL){//function call
+
+		}
+		else{//variable identifier
+
+		}
+	}
+	else if(!strcmp(child->name,"INT")){
+
+	}
+	else if(!strcmp(child->name,"FLOAT")){
+
+	}
+	else{
+		printf("CODE ERROR:in function exp");
+	}
+}
+//Args -> Exp COMMA Args
+//		| Exp
+//返回值用于判断实际参数和形式参数是否匹配，VarType v是函数的形式参数列表
+bool Args(Node* n,VarType v){
+	if(n==NULL&&v==NULL)return true;//匹配结束
+	else if(n==NULL||v==NULL)return false;//数量不匹配
+	Node *child=n->children;
+	Type t=Exp(child);
+	if(t==NULL)return true;		//如果exp返回NULL说明出现了错误，此处不用重复报错，直接返回
+	if(!isTypeEqual(t,v->type))return false;
+	//不直接调用Args(child->next->next,v->next_field);是因为child->next==NULL时child->next->next会出现指针错误
+	if(child->next==NULL&&v->next_field==NULL)return true;
+	else if(child->next==NULL||v->next_field==NULL)return false;
+	return Args(child->next->next,v->next_field);
 }
 
-bool Args(Node* n,VarType v){
-	
+char* Type2String(Type t){
+	if(t==NULL)return "NULL";
+	switch (t->type)
+	{
+		case BASIC:
+			if(t->type_info.basic==INT) return "int";
+			else return "float";
+		case ARRAY:return "ARRAY";
+		case STRUCTURE:	return "STRUCTURE";
+		default: return "unknown TYPE";
+	}
 }

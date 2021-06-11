@@ -127,6 +127,7 @@ Exp :	Exp ASSIGNOP Exp	{$$=NewNode("Exp","");addChild($$,$3);addChild($$,$2);add
 	|	INT			{$$=NewNode("Exp","");addChild($$,$1);}
 	|	FLOAT			{$$=NewNode("Exp","");addChild($$,$1);}
 	;
+//实际参数列表
 Args:	Exp COMMA Args		{$$=NewNode("Args","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 	|	Exp			{$$=NewNode("Args","");addChild($$,$1);}
 	;
