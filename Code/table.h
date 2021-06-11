@@ -12,6 +12,13 @@
 #define FROM_COMPOUND 2
 #define FROM_STRUCT 3
 #define FROM_PARAM 4
+//insert_into_table
+#define INSERT_SUCCESS 0
+#define REDEFINE_ERROR 1
+#define DEF_MISMATCH_DEC 2
+#define DEC_MISMATCH_DEF 3
+#define DEC_MISMATCH_DEC 4
+
 
 typedef struct Type_* Type;
 typedef struct Structure_* Structure;

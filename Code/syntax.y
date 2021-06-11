@@ -72,6 +72,8 @@ FunDec	: 	ID LP VarList RP	 {$$=NewNode("FunDec","");addChild($$,$4);addChild($$
        	|	ID LP RP		 {$$=NewNode("FunDec","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 		|	error RP		{errorFlag=0;/*printf("%sFunDec\n",$$->value);*/}
 		;
+		
+/* VarList：函数参数列表 */
 VarList	:	ParamDec COMMA VarList	{$$=NewNode("VarList","");addChild($$,$3);addChild($$,$2);addChild($$,$1);}
 		|	ParamDec		{$$=NewNode("VarList","");addChild($$,$1);}
 		;

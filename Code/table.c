@@ -25,14 +25,14 @@ int insertVar(VarType vl) {
 	} else {
 		VarType cur = varTable[index], pre;
 		while(cur) {
-			if(!strcmp(cur->name, vl->name))
-				return 1;
+			if(!strcmp(cur->name, vl->name))//重名变量
+				return REDEFINE_ERROR;
 			pre = cur;
 			cur = cur->next;
 		}
 		pre->next = vl;
 	}
-	return 0;
+	return INSERT_SUCCESS;//成功插入
 }
 
 // insertFunc: 将函数插入函数哈希表。注意c语言不支持重载
@@ -54,13 +54,13 @@ int insertFunc(FuncType f) {
 				if(f->isDefined == true) {
 					// 如果该函数已经存在定义
 					if(cur->isDefined) {
-						return 1;
+						return REDEFINE_ERROR;
 					// 如果没有定义,则已经声明,且参数或返回值不同
 					} else if(!isTypeEqual(cur->returnType, f->returnType) || !isParamEqual(cur->param, f->param)) {
-						return 2;
+						return DEF_MISMATCH_DEC;
 					} else {
 						cur->isDefined = true;
-						return 0;
+						return INSERT_SUCCESS;
 					}
 				// 如果现在要插入一个声明,注意重复的声明不会报错
 				} else {
@@ -68,12 +68,12 @@ int insertFunc(FuncType f) {
 					if(!isTypeEqual(cur->returnType, f->returnType) || !isParamEqual(cur->param, f->param)) {
 						// 声明和定义不同
 						if(cur->isDefined)
-							return 3;
+							return DEC_MISMATCH_DEF;
 						// 声明和声明不同
 						else
-							return 4;
+							return DEC_MISMATCH_DEC;
 					} else {
-						return 0;
+						return INSERT_SUCCESS;
 					}
 				}
 			}
@@ -83,7 +83,7 @@ int insertFunc(FuncType f) {
 		pre->next = f;
 		insertParam(f);
 	}
-	return 0;
+	return INSERT_SUCCESS;
 }
 
 void insertParam(FuncType f) {
@@ -91,7 +91,7 @@ void insertParam(FuncType f) {
 	int ret_code = 0; // 返回状态码
 	while(param) {
 		ret_code = insertVar(param);
-		if(ret_code == 1) {
+		if(ret_code == REDEFINE_ERROR) {
 			// Error type 3
 			printf("error type 3 at line %d: redefinition of variable '%s'\n", f->row, param->name);
 		}
@@ -184,10 +184,10 @@ void ExtDefList(Node *n) {
 void ExtDef(Node *n) {
 	Node *child = n->children; // child: Specifier
 	Type t = Specifier(child);
-	if(!strcmp(child->next->name, "ExtDecList")) {
+	if(!strcmp(child->next->name, "ExtDecList")) {//variable
 		ExtDecList(child->next, t);
 		return;
-	} else if(!strcmp(child->next->name, "SEMI")) {
+	} else if(!strcmp(child->next->name, "SEMI")) {//STRUCT declare
 		return;
 	} else if(!strcmp(child->next->name, "FunDec")) {
 		FuncType f = FunDec(child->next, t);//t作为返回值类型传入
@@ -196,13 +196,14 @@ void ExtDef(Node *n) {
 			if(!strcmp(child->next->next->name, "CompSt")) { // 函数定义
 				f->isDefined = true;
 				int ret_code = insertFunc(f);
-				if(ret_code == 1) {
+				if(ret_code == REDEFINE_ERROR) {
 					// 函数重定义
 					printf("error type 4 at line %d: redefinition of function '%s'\n", f->row, f->name);
-				} else if(ret_code == 2) {
+				} else if(ret_code == DEF_MISMATCH_DEC) {
 					// 当前定义和先前的声明不同
 					printf("error type 19 at line %d: definition of function '%s' is different from the previous declaration\n", f->row, f->name);
 				}
+				CompSt(child->next->next,t);
 				return;
 			} else if(!strcmp(child->next->next->name, "SEMI")) { // 函数声明
 				f->isDefined = false;
@@ -226,7 +227,7 @@ void ExtDef(Node *n) {
 // ExtDecList -> VarDec | VarDec COMMA ExtDecList
 void ExtDecList(Node *n, Type t) {
 	Node *child = n->children;
-	VarType v = VarDec(child);
+	VarType v = VarDec(child,t,FROM_GLOBAL);
 	if(!strcmp(child->next->name, "COMMA") && !strcmp(child->next->next->name, "ExtDecList")) {
 		ExtDecList(child->next->next, t);
 	}
@@ -256,6 +257,7 @@ Type Specifier(Node *n) {
 
 // StructSpecifier -> STRUCT OptTag LC DefList RC
 // 					| STRUCT Tag
+//OptTag和Tag不需要定义函数，直接在StructSpecifier中就解决了
 Type StructSpecifier(Node *n) {
 	Node *child = n->children;
 	if(!strcmp(child->name, "STRUCT")) {
@@ -425,4 +427,143 @@ VarType ParamDec(Node*n){
 	Type type=Specifier(child);
 	VarType v=VarDec(child->next,type,FROM_PARAM);
 	return v;
+}
+
+//VarDec -> ID
+// 		  | VarDec LB INT RB
+VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
+	Node* child=n->children;
+	if(!strcmp(child->name,"ID")){
+		VarType v=malloc(sizeof(struct VarType_));
+		v->name=malloc(sizeof(child->value));//变量名
+		strcmp(v->name,child->value);
+		v->type=type;
+		v->next=NULL;
+		v->next_field=NULL;
+		if(place==FROM_PARAM)return v;//在函数参数列表中定义的变量，不需要插入变量表，只需要赋值给func->param
+		if(insertVar(v)==REDEFINE_ERROR){
+			if(place==FROM_GLOBAL||place==FROM_COMPOUND)//暂时不区分全局变量和域变量
+				printf("Error type 3 at line %d: Redefined global variable'%s'\n",child->row,v->name);	
+			else //来自结构体
+				printf("Error type 15 at line %d: Redefined field variable ‘%s’\n",child->row,v->name);
+			return NULL;
+		}
+		return v;
+	}
+	/*他这种写法很怪异
+	else if(!strcmp(child->name,"VarDec")){//数组
+		VarType v=VarDec(child,type,place);//先调用，定义type，然后接下来再改。
+		if(v==NULL)return NULL;//重名了
+		else{
+			child=child->next->next;	//INT
+			Type t=malloc(sizeof(struct Type_));
+			t->type=ARRAY;
+			t->type_info.array.size=atoi(child->value);
+			t->type_info.array.element=type;//确定数组中的元素类型
+			Type tmp=v->type;
+			if(tmp->type!=ARRAY){//以int a[8];为例。此时a的type是int，此处要改为array
+				v->type=t;
+				return v;
+			}
+			while(tmp->type_info.array.element->type==ARRAY){	//找到数组的最外层，定义其类型为基本类型。
+				tmp=tmp->type_info.array.element;
+			}
+			tmp->type_info.array.element=t;
+			//printtype(f->type);
+			return v;
+		}
+	}
+	*/
+	else if(!strcmp(child->name,"VarDec")){//数组
+		Type NewType=malloc(sizeof(struct Type_));
+		NewType->type=ARRAY;
+		NewType->type_info.array.size=atoi(child->next->next->value);
+		NewType->type_info.array.element=type;
+		VarType v=VarDec(child,NewType,place);
+		if(v==NULL)return NULL;
+		return v;
+	}
+	else {
+		printf("CODE ERROR in VarDec function\n");
+	}
+}
+
+//CompSt -> LC DefList StmtList RC  这个CoumpSt仅用于函数体，不用于结构体，故有返回值
+void CompSt(Node * n,Type return_type){
+	Node* child=n->children->next;//DefList
+	DefList(child,FROM_COMPOUND);
+	child=child->next;//StmtList
+	StmtList(child,return_type);
+}
+
+//StmtList -> Stmt StmtList
+//			| e
+void StmtList(Node *n,Type return_type){
+	Node* child=n->children;
+	if(n){
+		Stmt(child,return_type);
+		child=child->next;
+		StmtList(child,return_type);
+	}
+	return;
+}
+
+//Stmt -> Exp SEMI		
+//     |  CompSt			
+//	   |  RETURN Exp SEMI		
+//	   |  IF LP Exp RP Stmt	
+//	   |  IF LP Exp RP Stmt ELSE Stmt
+//	   |  WHILE LP Exp RP Stmt
+void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismatched	
+{
+	Node*child=n->children;
+	if(!strcmp(child->name,"Exp")){
+		Exp(child);
+		return;
+	}	
+	else if(!strcmp(child->name,"CompSt")){
+		CompSt(child,return_type);
+		return;
+	}
+	else if(!strcmp(child->name,"RETURN")){
+		child=child->next;
+		Type t=Exp(child);
+		if(return_type==NULL||t==NULL)return;
+		if(!typeEqual(return_type,t))
+		{
+			printf("Error type 8 at line %d: The return type mismatched\n",child->row);
+		}
+		return;
+	}
+	else if(!strcmp(child->name,"IF")){
+		//还需改动,实现跳转功能
+		child=child->next->next;//Exp
+		Exp(child);
+		child=child->next->next;//Stmt
+		Stmt(child,return_type);
+		child=child->next;//else或NULL
+		if(child){
+			child=child->next;//Stmt
+			Stmt(child,return_type);
+		}
+	}
+	else if(!strcmp(child->name,"WHILE")){
+		//还需改动,实现跳转功能
+		child=child->next->next;//Exp
+		Exp(child);
+		child=child->next->next;//Stmt
+		Stmt(child,return_type);
+	}
+	else {
+		printf("CODE ERROR: in Stmt function\n");
+	}
+}
+
+Type Exp(Node *n){
+
+
+}
+
+bool Args(Node* n,VarType v){
+	
 }
