@@ -496,7 +496,6 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 
 //CompSt -> LC DefList StmtList RC  这个CoumpSt仅用于函数体，不用于结构体，故有返回值
 void CompSt(Node * n,Type return_type){
-	printf("CompSt\n");
 	Node* child=n->children->next;//DefList
 	DefList(child,FROM_COMPOUND);
 	child=child->next;//StmtList
@@ -507,7 +506,7 @@ void CompSt(Node * n,Type return_type){
 //			| e
 void StmtList(Node *n,Type return_type){
 	Node* child=n->children;
-	if(n){
+	if(child){
 		Stmt(child,return_type);
 		child=child->next;
 		StmtList(child,return_type);
@@ -730,7 +729,7 @@ Type BinaryExp(Node* left,Node* op,Node* right){
 			return NULL;
 		}
 	}
-	else if(!strcmp(op->name,"PLUS")||!strcmp(op->name,"MINUS")||!strcmp(op->name,"STAR")||!strcmp(op->name,"DIV")||!strcmp(op->name,"RELOP")){
+	else if(!strcmp(op->name,"PLUS")||!strcmp(op->name,"MINUS")||!strcmp(op->name,"MUL")||!strcmp(op->name,"DIV")||!strcmp(op->name,"RELOP")){
 		Type leftType=Exp(left);
 		Type rightType=Exp(right);
 		if(leftType==NULL||rightType==NULL)return NULL;
@@ -743,7 +742,7 @@ Type BinaryExp(Node* left,Node* op,Node* right){
 		}
 	}
 	else{
-		printf("ERROR:unkonwn operand at line %d\n",op->row);
+		printf("ERROR:unkonwn operand %s at line %d\n",op->value,op->row);
 	}
 }
 //Args -> Exp COMMA Args

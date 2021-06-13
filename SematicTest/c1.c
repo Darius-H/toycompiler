@@ -1,26 +1,18 @@
 //while语句和expression计算与赋值
 struct Vector
 {
-
 	float x, y;
-
 };
 float dotMultiply(struct Vector v1, struct Vector v2)
-	 {
+{
+	float ret = v1.x*v2.y-v1.y*v2.x;
+	return ret;
+}
 
-		float ret = v1.x*v2.y-v1.y*v2.x;
-		
-			return ret;
-	
-
-	}
-
- struct Vector2
- {
-
+struct Vector2
+{
 	float x1, y1;
-
- };
+};
 int main()
  {
 
