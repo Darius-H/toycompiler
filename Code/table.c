@@ -20,6 +20,7 @@ int insertVar(VarType vl) {
 		return -1;
 	
 	unsigned int index = hash_pjw(vl->name);
+	//printf("inserVar:%s %d\n",vl->name,index);
 	if(varTable[index] == NULL) {
 		varTable[index] = vl;
 	} else {
@@ -105,10 +106,13 @@ bool isTypeEqual(Type t1, Type t2) {
 		printf("ERROR:Type param is NULL in isTypeEqual function!\n");
 		return false;
 	}
-	if(t1->type != t2->type) {
+	if((t1->type==BASIC&&t2->type==CONSTANT)||(t1->type==CONSTANT&&t2->type==BASIC)){//变量和常数
+		return t1->type_info.basic==t2->type_info.basic;
+	}
+	else if(t1->type != t2->type) {
 		return false;
 	} else {//变量类型相同
-		if(t1->type == BASIC) {
+		if(t1->type == BASIC) {//变量和变量
 			if(t1->type_info.basic != t2->type_info.basic)
 				return false;
 		} else if(t1->type == ARRAY) {
@@ -433,19 +437,21 @@ VarType ParamDec(Node*n){
 // 		  | VarDec LB INT RB
 VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 	Node* child=n->children;
+	//printf("VARDEC\n");
 	if(!strcmp(child->name,"ID")){
 		VarType v=malloc(sizeof(struct VarType_));
 		v->name=malloc(sizeof(child->value));//变量名
-		strcmp(v->name,child->value);
+		strcpy(v->name,child->value);
 		v->type=type;
 		v->next=NULL;
 		v->next_field=NULL;
 		if(place==FROM_PARAM)return v;//在函数参数列表中定义的变量，不需要插入变量表，只需要赋值给func->param
+		
 		if(insertVar(v)==REDEFINE_ERROR){
 			if(place==FROM_GLOBAL||place==FROM_COMPOUND)//暂时不区分全局变量和域变量
 				printf("Error type 3 at line %d: Redefined global variable'%s'\n",child->row,v->name);	
 			else //来自结构体
-				printf("Error type 15 at line %d: Redefined field variable ‘%s’\n",child->row,v->name);
+				printf("Error type 15 at line %d: Redefined field variable '%s'\n",child->row,v->name);
 			return NULL;
 		}
 		return v;
@@ -490,6 +496,7 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 
 //CompSt -> LC DefList StmtList RC  这个CoumpSt仅用于函数体，不用于结构体，故有返回值
 void CompSt(Node * n,Type return_type){
+	printf("CompSt\n");
 	Node* child=n->children->next;//DefList
 	DefList(child,FROM_COMPOUND);
 	child=child->next;//StmtList
@@ -529,7 +536,7 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 		child=child->next;
 		Type t=Exp(child);
 		if(return_type==NULL||t==NULL)return;
-		if(!typeEqual(return_type,t))
+		if(!isTypeEqual(return_type,t))
 		{
 			printf("Error type 8 at line %d: The return type mismatched\n",child->row);
 		}
@@ -539,7 +546,7 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 		//还需改动,实现跳转功能
 		child=child->next->next;//Exp
 		Type t=Exp(child);
-		if(t!=NULL&&(t->type!=BASIC)){//t==NULL的话说明在Exp函数中已经报错了
+		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT)){//t==NULL的话说明在Exp函数中已经报错了
 			printf("Error at line %d: type %s is not allowed for if condition",child->row,Type2String(t));
 		}
 		child=child->next->next;//Stmt
@@ -554,7 +561,7 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 		//还需改动,实现停止循环功能
 		child=child->next->next;//Exp
 		Type t=Exp(child);
-		if(t!=NULL&&(t->type!=BASIC)){//t==NULL的话说明在Exp函数中已经报错了
+		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT)){//t==NULL的话说明在Exp函数中已经报错了
 			printf("Error at line %d: type %s is not allowed for while condition",child->row,Type2String(t));
 		}
 		child=child->next->next;//Stmt
@@ -589,40 +596,154 @@ Type Exp(Node *n){
 	Node *child=n->children;
 	if(!strcmp(child->name,"Exp")){
 		if(!strcmp(child->name,"LB")){//array
-
+			Type t1=Exp(child);
+			if(t1==NULL)return NULL;
+			if(t1->type!=ARRAY)
+			{
+				printf("Error type 10 at line %d: '%s' must be an array\n",child->row,child->value);
+				return NULL;
+			}
+			child=child->next->next;//第二个exp
+			Type t2=Exp(child);
+			if(t2==NULL)return NULL;  
+			if(!((t2->type==BASIC||t2->type==CONSTANT)&&t2->type_info.basic==INT))
+			{
+				printf("Error type 12 at line %d: Operands type mistaken\n",child->row);
+				return NULL;
+			}
+			return t1->type_info.array.element;
 		}
 		else if(!strcmp(child->name,"DOT")){//struct
-		
+			Type t1=Exp(child);
+			if(t1==NULL)return NULL;
+			if(t1->type!=STRUCTURE)
+			{
+				printf("Error type 13 at line %d: Illegal use of '.'\n",child->row);
+				return NULL;
+			}
+			VarType v=t1->type_info.structure->varList;
+			child=child->next->next;
+			while(v!=NULL)
+			{
+				if(!strcmp(v->name,child->value))
+					return v->type;
+				v=v->next_field;
+			}
+			printf("Error type 14 at line %d: Un-existed field '%s‘\n",child->row,child->value);
+			return NULL;
 		}
 		else{//binary exp
-			BinaryExp(child,child->next,child->next->next);
+			return BinaryExp(child,child->next,child->next->next);
 		}
 	}
 	else if(!strcmp(child->name,"LP")){
-
+		return Exp(child->next);
 	}
 	else if(!strcmp(child->name,"MINUS")){
-
+		Type t=Exp(child->next);
+		if(t==NULL)return NULL;
+		if(t->type==BASIC)return t;
+		printf("Error type 7 at line %d: Operands type mismatched\n",child->row);
+		return NULL;
 	}
 	else if(!strcmp(child->name,"NOT")){
-
+		Type t=Exp(child->next);
+		if(t==NULL)return NULL;
+		if(t->type==BASIC&&t->type_info.basic==INT)return t;
+		printf("Error type 7 at line %d: Operands type mismatched\n",child->row);
+		return NULL;
 	}
 	else if(!strcmp(child->name,"ID")){
 		if(child->next!=NULL){//function call
-
+			VarType v=findSymbol(child->value);
+			FuncType f=findFunc(child->value);
+			if(v!=NULL&&f==NULL)
+			{
+				printf("Error type 11 at line %d: '%s' must be a function\n",child->row,child->value);
+				return NULL;
+			}
+			if(f==NULL||!f->isDefined){
+				printf("Error type 2 at line %d: Undefined function '%s'\n",child->row,child->value);
+				return NULL;
+			}
+			VarType param=f->param;
+			child=child->next->next;
+			if(strcmp(child->name,"RP")==0)//无参
+			{
+				if(param!=NULL)
+				{
+					printf("Error type 9 at line : The method '%s(",f->name);
+					printparam(param);
+					printf(")'is not applicable for the arguments '()'\n");
+				}
+			}
+			else
+			{
+				if(!Args(child,param)){
+					printf("Error type 9 at line : The method '%s(",f->name);
+					printparam(param);
+					printf(")'is not applicable for the arguments '(");
+					printargs(child);
+					printf(")'\n");
+				}
+			}
+			return f->returnType;
 		}
 		else{//variable identifier
-
+			VarType v=findSymbol(child->value);
+			if(v==NULL)
+			{
+				printf("Error type 1 at line %d: Undefined variable '%s'\n",child->row,child->value);	
+				return NULL;
+			}
+			return v->type;
 		}
 	}
 	else if(!strcmp(child->name,"INT")){
-
+		Type t=malloc(sizeof(struct Type_));
+		t->type=CONSTANT;
+		t->type_info.basic=INT;
+		return t;
 	}
 	else if(!strcmp(child->name,"FLOAT")){
-
+		Type t=malloc(sizeof(struct Type_));
+		t->type=CONSTANT;
+		t->type_info.basic=FLOAT;
+		return t;
 	}
 	else{
 		printf("CODE ERROR:in function exp");
+	}
+}
+Type BinaryExp(Node* left,Node* op,Node* right){
+	if(!strcmp(op->name,"ASSIGNOP")){
+		Type leftType=Exp(left);
+		if(leftType->type!=BASIC){
+			printf("Error type 6 at line %d: The left-hand side of an assignment must be a variable\n",left->row);
+		}
+		Type rightType=Exp(right);
+		if(leftType==NULL||rightType==NULL)return NULL;
+		if(isTypeEqual(leftType,rightType))return leftType;
+		else
+		{
+			printf("Error type 5 at line %d: Type mismatched\n",left->row);
+			return NULL;
+		}
+	}
+	else if(!strcmp(op->name,"PLUS")||!strcmp(op->name,"MINUS")||!strcmp(op->name,"STAR")||!strcmp(op->name,"DIV")||!strcmp(op->name,"RELOP")){
+		Type leftType=Exp(left);
+		Type rightType=Exp(right);
+		if(leftType==NULL||rightType==NULL)return NULL;
+		else if((leftType->type==BASIC||leftType->type==CONSTANT)&&(rightType->type==BASIC||rightType->type==CONSTANT)
+			&&leftType->type_info.basic==rightType->type_info.basic)return leftType;
+		else
+		{
+			printf("Error type 7 at line %d: Operands type mismatched\n",left->row);
+			return NULL;
+		}
+	}
+	else{
+		printf("ERROR:unkonwn operand at line %d\n",op->row);
 	}
 }
 //Args -> Exp COMMA Args
@@ -645,7 +766,7 @@ char* Type2String(Type t){
 	if(t==NULL)return "NULL";
 	switch (t->type)
 	{
-		case BASIC:
+		case BASIC|CONSTANT:
 			if(t->type_info.basic==INT) return "int";
 			else return "float";
 		case ARRAY:return "ARRAY";
@@ -653,3 +774,81 @@ char* Type2String(Type t){
 		default: return "unknown TYPE";
 	}
 }
+
+int String2Int(char *s){//允许16进制和8进制字符串转整数
+	if(s==NULL){
+		printf("ERROR:NULL pointer in String2Int function\n");
+		return 0;
+	}
+	if(s[0]=='-'){
+		return -String2Int(s+1);
+	}
+	int len=strlen(s);
+	int n=0,tmp,i;
+	if(s[0]=='0'){
+		if(len==1)return 0;
+		else if(s[1]=='x'||s[1]=='X'){//16进制
+			for(i=2;i<len;i++){
+				if(s[i]>='A'&&s[i]<='F')//十六进制还要判断他是不是在A-F或者a-f之间a=10。。
+				tmp=s[i]-'A'+10;
+				else if(s[i]>='a'&&s[i]<='f')
+				tmp=s[i]-'a'+10;
+				else tmp=s[i]-'0';
+				n=n*16+tmp;
+			}
+			return n;
+		}
+		else{//8进制
+			for(i=1;i<len;i++){
+				tmp=s[i]-'0';
+				n=n*8+tmp;
+			}
+			return n;
+		}
+	}
+	else return atoi(s);
+}
+//Test Function
+void printparam(VarType v){
+	while(v!=NULL){
+		printtype(v->type);
+		v=v->next_field;
+	}
+}
+
+void printargs(Node *n){
+	Node *child=n->children;
+	Type t=Exp(child);
+	if(t==NULL)return;
+	printtype(t);
+	child=child->next;
+	if(child==NULL)return;
+	child=child->next;
+	printargs(child);
+}
+
+void printtype(Type t){
+	if((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic==INT)
+		printf(" int ");
+	else if((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic==FLOAT)
+		printf(" float ");
+	else if(t->type==STRUCTURE)
+		printf("struct %s ",t->type_info.structure->name);
+	else if(t->type==ARRAY){
+		printtype(t->type_info.array.element);
+		printf("[]");
+	}
+}
+
+void printNode(Node *n){
+	Node *child=n->children;
+	if(child==NULL){
+		printf(" %s",n->value);
+		return;
+	}
+	while(child!=NULL){
+		printNode(child);
+		child=child->next;
+	}
+}
+

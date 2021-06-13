@@ -147,27 +147,12 @@ int main(int argc, char** argv)
 	yylineno=1;
 	yyrestart(f);
 	yyparse();
-    printf("PRINT_TREE\n");
+    printf("----------PRINT_TREE---------\n");
 	printTree(root,0);
-    /*
-	if(errorFlag){
-		//printTree(root,0);	
-		initTable();
+	printf("----------PRINT_TREE_DONE---------\n");
+	if(errorFlag){	
 		Program(root);
-		//optimize inter code
-		optIF();	//label
-		rmLabel();
-
-		lookCon();		//temp
-		rddCode();		//variable
-
-		sameRight();
-		if(argc<=2)	return 1;
-		//printCode("out.ir");
-		initReg();
-		printAllCode(argv[2]);
 	}
-    */
 	return 0;
 }
 

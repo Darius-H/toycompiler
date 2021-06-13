@@ -18,9 +18,9 @@ D_NOZERO [1-9]
 E   ([Ee][+-]?{D}+)
 H   [a-fA-F0-9]
 HP  (0(x|X))
-HEX_CONSTANT {HP}{H}+ 
-OCT_CONSTANT 0{O}+
-DEC_CONSTANT 0|{D_NOZERO}{D}*
+HEX_CONSTANT -?{HP}{H}+ 
+OCT_CONSTANT -?0{O}+
+DEC_CONSTANT 0|-?{D_NOZERO}{D}*
 float {D}*\.{D}+{E}?
 integer {HEX_CONSTANT}|{OCT_CONSTANT}|{DEC_CONSTANT}
 
@@ -63,6 +63,7 @@ while 		{yylval.node=NewNode("WHILE",yytext);return WHILE;}
 {id} 		{yylval.node=NewNode("ID",yytext);return ID;}
 .			{errorFlag=0;printf("Error type A at line %d: Mysterious character '%s'\n",yylineno,yytext);}
 "/*"		{comment(yyin);}
+"//".*\n    {}
 %%
 
 int yywrap(){

@@ -27,7 +27,7 @@ typedef struct FuncType_* FuncType;
 
 struct Type_
 {
-	enum { BASIC, ARRAY, STRUCTURE } type;
+	enum { BASIC, ARRAY, STRUCTURE,CONSTANT } type;//BASIC可以做左值，CONSTANT不能做左值
 	union
 	{
 		// 基本类型信息
@@ -65,5 +65,41 @@ struct FuncType_
 	FuncType next;// 哈希表同一表项中所构成的链表
 };
 
+unsigned int hash_pjw(char *name);
+int insertVar(VarType vl);
+int insertFunc(FuncType f);
+void insertParam(FuncType f);
+
+bool isTypeEqual(Type t1, Type t2);
+bool isParamEqual(VarType v1, VarType v2);
+VarType findSymbol(char *name);
+FuncType findFunc(char *name);
+void Program(Node *n);
+void ExtDefList(Node *n);
+void ExtDef(Node *n);
+void ExtDecList(Node *n, Type t);
+Type Specifier(Node *n);
+Type StructSpecifier(Node *n);
+VarType DefList(Node *n,int place);
+VarType Def(Node* n,int place);
+VarType DecList(Node* n,Type type,int place);
+VarType Dec(Node* n,Type type,int place);
+FuncType FunDec(Node* n,Type return_type);
+VarType VarList(Node* n);
+VarType ParamDec(Node*n);
+VarType VarDec(Node* n,Type type,int place);
+void CompSt(Node * n,Type return_type);
+void StmtList(Node *n,Type return_type);
+void Stmt(Node *n,Type return_type);
+Type Exp(Node *n);
+Type BinaryExp(Node* left,Node* op,Node* right);
+bool Args(Node* n,VarType v);
+//TestFuntion
+char* Type2String(Type t);
+int String2Int(char *s);
+void printparam(VarType v);
+void printargs(Node *n);
+void printtype(Type t);
+void printNode(Node *n);
 
 #endif
