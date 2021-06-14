@@ -31,7 +31,7 @@ struct Type_
 	union
 	{
 		// 基本类型信息
-		enum { INT, FLOAT } basic;
+		enum { INT_TYPE, FLOAT_TYPE } basic;
 		// 数组类型信息: 元素类型与数组大小
 		struct { Type element; int size; } array;
 		// 结构体类型信息

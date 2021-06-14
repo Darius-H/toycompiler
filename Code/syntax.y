@@ -1,6 +1,7 @@
 %{
 	#include"TreeNode.h"
 	#include"lex.yy.c"
+	#include "table.h"
 	PtrToNode root;
 %}
 
@@ -153,6 +154,9 @@ int main(int argc, char** argv)
 	if(errorFlag){	
 		Program(root);
 	}
+	VarType x=findSymbol("x");
+	//printf("xtype: %d\n",x->type->type);
+	FuncType m=findFunc("main");
 	printf("\n----------Var Table----------\n");
 	printVarTable();
 

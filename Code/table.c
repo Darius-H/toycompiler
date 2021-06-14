@@ -20,7 +20,7 @@ void printVarTable(void) {
 			VarType cur = varTable[i];
 			printf("index: %d\n", i);
 			while(cur) {
-				printf("\tname: %s, type: %s\n", cur->name, Type2String(cur->type));
+				printf("\tname: %s, type:%d %s\n", cur->name,cur->type->type, Type2String(cur->type));
 				cur = cur->next;
 			}
 		}
@@ -33,19 +33,19 @@ void printFuncTable(void) {
 		if(funcTable[i]) {
 			FuncType cur = funcTable[i];
 			printf("index: %d\n", i);
-			// while(cur) {
+			while(cur) {
 				printf("  name: %s\n", cur->name);
 				printf("    isDefined: %d\n", cur->isDefined);
 				printf("    row: %d\n", cur->row);
 				printf("    returnType: %s\n", Type2String(cur->returnType)); 
-				// printf("    param:\n");
-				// VarType tmp = cur->param;
-				// while(tmp) {
-				// 	printf("      name: %s, type: %s\n", tmp->name, Type2String(tmp->type));
-				// 	tmp = tmp->next_field;
-				// }
-				// cur = cur->next;
-			// }
+				printf("    param:\n");
+				VarType tmp = cur->param;
+				while(tmp) {
+					printf("      name: %s, type: %s\n", tmp->name, Type2String(tmp->type));
+					tmp = tmp->next_field;
+				}
+				cur = cur->next;
+			}
 		}
 	}
 }
@@ -60,7 +60,7 @@ void initHashTable(void) {
 	read->row = 0;
 	read->returnType = malloc(sizeof(struct Type_));
 	read->returnType->type = BASIC;
-	read->returnType->type_info.basic = INT;
+	read->returnType->type_info.basic = INT_TYPE;
 	read->param = NULL;
 	read->next = NULL;
 	insertFunc(read);
@@ -73,7 +73,7 @@ void initHashTable(void) {
 	write->row = 0;
 	write->returnType = malloc(sizeof(struct Type_));
 	write->returnType->type = BASIC;
-	write->returnType->type_info.basic = INT;
+	write->returnType->type_info.basic = INT_TYPE;
 	write->param = malloc(sizeof(struct VarType_));
 	write->param->name = malloc(20);
 	strcpy(write->param->name, "write_param");
@@ -247,6 +247,7 @@ void Program(Node *n) {
 
 // ExtDefList -> ExtDef ExtDefList | ε
 void ExtDefList(Node *n) {
+	//printf("ExtDefList\n");
 	Node *child = n->children;
 	if(child) {
 		ExtDef(child);
@@ -257,6 +258,7 @@ void ExtDefList(Node *n) {
 // ExtDef -> Specifier ExtDecList SEMI | Specifier SEMI
 // 		   | Specifier FunDec CompSt | Specifier FunDec SEMI
 void ExtDef(Node *n) {
+	//printf("ExtDef\n");
 	Node *child = n->children; // child: Specifier
 	Type t = Specifier(child);
 	if(!strcmp(child->next->name, "ExtDecList")) {//variable
@@ -303,8 +305,11 @@ void ExtDef(Node *n) {
 void ExtDecList(Node *n, Type t) {
 	Node *child = n->children;
 	VarType v = VarDec(child,t,FROM_GLOBAL);
-	if(!strcmp(child->next->name, "COMMA") && !strcmp(child->next->next->name, "ExtDecList")) {
-		ExtDecList(child->next->next, t);
+	//printf("ExtDecList\n");
+	if(child->next){
+		if(!strcmp(child->next->name, "COMMA") && !strcmp(child->next->next->name, "ExtDecList")) {
+			ExtDecList(child->next->next, t);
+		}	
 	}
 	printf("[Internal Error] error in semantic analysis in ExtDecList()\n");
 	return;
@@ -317,12 +322,13 @@ Type Specifier(Node *n) {
 		Type t = malloc(sizeof(struct Type_));
 		t->type = BASIC;
 		if(!strcmp(child->value, "int")) {
-			t->type_info.basic = INT;
+			t->type_info.basic = INT_TYPE;
 		} else if(!strcmp(child->value, "float")) {
-			t->type_info.basic = FLOAT;
+			t->type_info.basic = FLOAT_TYPE;
 		} else {
 			t = NULL;
 		}
+		//printf("%d\n",t->type);
 		return t;
 	} else if(!strcmp(child->name, "StructSpecifier")) {
 		Type t = StructSpecifier(child);
@@ -413,9 +419,11 @@ VarType DefList(Node *n,int place) {//Struct中的DefList不允许声明时赋�
 
 //Def -> Specifier DecList SEMI
 VarType Def(Node* n,int place){
+	//printf("Def\n");
 	Node* child=n->children;
 	VarType v;
 	Type type=Specifier(child);
+	//printf("%d\n",type->type);
 	child=child->next;
 	v=DecList(child,type,place);	
 	return v;
@@ -464,6 +472,7 @@ VarType Dec(Node* n,Type type,int place){
 //		|  error RP (语法错误，不在此处处理)
 FuncType FunDec(Node* n,Type return_type)
 {
+	//printf("FunDec\n");
 	Node* child=n->children;
 	FuncType func=malloc(sizeof(struct FuncType_));
 	func->isDefined=false;
@@ -514,10 +523,11 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 		v->name=malloc(sizeof(child->value));//变量名
 		strcpy(v->name,child->value);
 		v->type=type;
+		//printf("%d\n",type->type);
 		v->next=NULL;
 		v->next_field=NULL;
 		if(place==FROM_PARAM)return v;//在函数参数列表中定义的变量，不需要插入变量表，只需要赋值给func->param
-		
+		//printf("insert Start\n");
 		if(insertVar(v)==REDEFINE_ERROR){
 			if(place==FROM_GLOBAL||place==FROM_COMPOUND)//暂时不区分全局变量和域变量
 				printf("Error type 3 at line %d: Redefined global variable'%s'\n",child->row,v->name);	
@@ -525,6 +535,7 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 				printf("Error type 15 at line %d: Redefined field variable '%s'\n",child->row,v->name);
 			return NULL;
 		}
+		//printf("insert Done\n");
 		return v;
 	}
 	/*他这种写法很怪异
@@ -616,7 +627,7 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 		//还需改动,实现跳转功能
 		child=child->next->next;//Exp
 		Type t=Exp(child);
-		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT)){//t==NULL的话说明在Exp函数中已经报错了
+		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT_TYPE)){//t==NULL的话说明在Exp函数中已经报错了
 			printf("Error at line %d: type %s is not allowed for if condition",child->row,Type2String(t));
 		}
 		child=child->next->next;//Stmt
@@ -631,7 +642,7 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 		//还需改动,实现停止循环功能
 		child=child->next->next;//Exp
 		Type t=Exp(child);
-		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT)){//t==NULL的话说明在Exp函数中已经报错了
+		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT_TYPE)){//t==NULL的话说明在Exp函数中已经报错了
 			printf("Error at line %d: type %s is not allowed for while condition",child->row,Type2String(t));
 		}
 		child=child->next->next;//Stmt
@@ -676,7 +687,7 @@ Type Exp(Node *n){
 			child=child->next->next;//第二个exp
 			Type t2=Exp(child);
 			if(t2==NULL)return NULL;  
-			if(!((t2->type==BASIC||t2->type==CONSTANT)&&t2->type_info.basic==INT))
+			if(!((t2->type==BASIC||t2->type==CONSTANT)&&t2->type_info.basic==INT_TYPE))
 			{
 				printf("Error type 12 at line %d: Operands type mistaken\n",child->row);
 				return NULL;
@@ -719,7 +730,7 @@ Type Exp(Node *n){
 	else if(!strcmp(child->name,"NOT")){
 		Type t=Exp(child->next);
 		if(t==NULL)return NULL;
-		if(t->type==BASIC&&t->type_info.basic==INT)return t;
+		if(t->type==BASIC&&t->type_info.basic==INT_TYPE)return t;
 		printf("Error type 7 at line %d: Operands type mismatched\n",child->row);
 		return NULL;
 	}
@@ -772,13 +783,13 @@ Type Exp(Node *n){
 	else if(!strcmp(child->name,"INT")){
 		Type t=malloc(sizeof(struct Type_));
 		t->type=CONSTANT;
-		t->type_info.basic=INT;
+		t->type_info.basic=INT_TYPE;
 		return t;
 	}
 	else if(!strcmp(child->name,"FLOAT")){
 		Type t=malloc(sizeof(struct Type_));
 		t->type=CONSTANT;
-		t->type_info.basic=FLOAT;
+		t->type_info.basic=FLOAT_TYPE;
 		return t;
 	}
 	else{
@@ -834,10 +845,11 @@ bool Args(Node* n,VarType v){
 
 char* Type2String(Type t){
 	if(t==NULL)return "NULL";
+	printf("Type to String: %d\n",t->type);
 	switch (t->type)
 	{
-		case BASIC|CONSTANT:
-			if(t->type_info.basic==INT) return "int";
+		case BASIC: case CONSTANT:
+			if(t->type_info.basic==INT_TYPE) return "int";
 			else return "float";
 		case ARRAY:return "ARRAY";
 		case STRUCTURE:	return "STRUCTURE";
@@ -898,9 +910,9 @@ void printargs(Node *n){
 }
 
 void printtype(Type t){
-	if((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic==INT)
+	if((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic==INT_TYPE)
 		printf(" int ");
-	else if((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic==FLOAT)
+	else if((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic==FLOAT_TYPE)
 		printf(" float ");
 	else if(t->type==STRUCTURE)
 		printf("struct %s ",t->type_info.structure->name);
