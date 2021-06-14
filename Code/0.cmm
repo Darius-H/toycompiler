@@ -1,5 +1,5 @@
 //int x;
-int main(int m){
+int main(int m, float b){
     int x;
     int y;
     x=x*3+y;

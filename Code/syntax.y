@@ -148,16 +148,12 @@ int main(int argc, char** argv)
 	yylineno=1;
 	yyrestart(f);
 	yyparse();
-    printf("----------PRINT_TREE---------\n");
+    printf("-----------Parse Tree-----------\n");
 	printTree(root,0);
-	printf("----------PRINT_TREE_DONE---------\n");
 	if(errorFlag){	
 		Program(root);
 	}
-	VarType x=findSymbol("x");
-	//printf("xtype: %d\n",x->type->type);
-	FuncType m=findFunc("main");
-	printf("\n----------Var Table----------\n");
+	printf("\n-----------Var Table----------\n");
 	printVarTable();
 
 	printf("\n----------Func Table----------\n");

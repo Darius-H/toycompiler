@@ -27,7 +27,7 @@ typedef struct FuncType_* FuncType;
 
 struct Type_
 {
-	enum { BASIC, ARRAY, STRUCTURE,CONSTANT } type;//BASIC可以做左值，CONSTANT不能做左值
+	enum { BASIC, ARRAY, STRUCTURE, CONSTANT } type;//BASIC可以做左值，CONSTANT不能做左值
 	union
 	{
 		// 基本类型信息

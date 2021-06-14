@@ -20,7 +20,7 @@ void printVarTable(void) {
 			VarType cur = varTable[i];
 			printf("index: %d\n", i);
 			while(cur) {
-				printf("\tname: %s, type:%d %s\n", cur->name,cur->type->type, Type2String(cur->type));
+				printf("  name: %s, type: %s\n", cur->name, Type2String(cur->type));
 				cur = cur->next;
 			}
 		}
@@ -200,6 +200,7 @@ bool isTypeEqual(Type t1, Type t2) {
 	}
 	return true;
 }
+
 //检查参数列表是否相同(只检查参数类型，允许参数名不同)
 bool isParamEqual(VarType v1, VarType v2) {
 	if(v1 == NULL && v2 == NULL)
@@ -211,6 +212,7 @@ bool isParamEqual(VarType v1, VarType v2) {
 	else
 		return false;
 }
+
 //检查变量表中是否存在该变量，不存在则返回null，存在则返回地址
 VarType findSymbol(char *name) {
 	unsigned int index = hash_pjw(name);
@@ -224,6 +226,7 @@ VarType findSymbol(char *name) {
 	}
 	return NULL;
 }
+
 //检查函数表中是否存在该函数，不存在则返回null，存在则返回地址
 FuncType findFunc(char *name) {
 	unsigned int index = hash_pjw(name);
@@ -247,19 +250,24 @@ void Program(Node *n) {
 
 // ExtDefList -> ExtDef ExtDefList | ε
 void ExtDefList(Node *n) {
-	//printf("ExtDefList\n");
-	Node *child = n->children;
-	if(child) {
-		ExtDef(child);
-		ExtDefList(child->next);
+	printf("ExtDefList\n");
+	if(n) {
+		Node *child = n->children;
+		if(child) {
+			ExtDef(child);
+			if(child->next)
+				ExtDefList(child->next);
+		}
 	}
 }
 
 // ExtDef -> Specifier ExtDecList SEMI | Specifier SEMI
 // 		   | Specifier FunDec CompSt | Specifier FunDec SEMI
 void ExtDef(Node *n) {
-	//printf("ExtDef\n");
+	printf("ExtDef\n");
 	Node *child = n->children; // child: Specifier
+	if(!child)
+		return;
 	Type t = Specifier(child);
 	if(!strcmp(child->next->name, "ExtDecList")) {//variable
 		ExtDecList(child->next, t);
@@ -304,36 +312,40 @@ void ExtDef(Node *n) {
 // ExtDecList -> VarDec | VarDec COMMA ExtDecList
 void ExtDecList(Node *n, Type t) {
 	Node *child = n->children;
-	VarType v = VarDec(child,t,FROM_GLOBAL);
-	//printf("ExtDecList\n");
-	if(child->next){
+	if(!child)
+		return;
+	VarType v = VarDec(child, t, FROM_GLOBAL);
+	if(child->next) {
 		if(!strcmp(child->next->name, "COMMA") && !strcmp(child->next->next->name, "ExtDecList")) {
 			ExtDecList(child->next->next, t);
 		}	
+	} else {
+		return;
 	}
-	printf("[Internal Error] error in semantic analysis in ExtDecList()\n");
-	return;
 }
 
 // Specifier -> TYPE | StructSpecifier
 Type Specifier(Node *n) {
+	printf("Specifier\n");
 	Node *child = n->children;
+	if(!child)
+		return NULL;
 	if(!strcmp(child->name, "TYPE")) {
-		Type t = malloc(sizeof(struct Type_));
+		Type t = (Type)malloc(sizeof(struct Type_));
+		if(!t)
+			return NULL;
 		t->type = BASIC;
 		if(!strcmp(child->value, "int")) {
 			t->type_info.basic = INT_TYPE;
 		} else if(!strcmp(child->value, "float")) {
 			t->type_info.basic = FLOAT_TYPE;
-		} else {
-			t = NULL;
 		}
-		//printf("%d\n",t->type);
 		return t;
 	} else if(!strcmp(child->name, "StructSpecifier")) {
 		Type t = StructSpecifier(child);
 		return t;
 	}
+	return NULL;
 }
 
 // StructSpecifier -> STRUCT OptTag LC DefList RC
@@ -351,7 +363,7 @@ Type StructSpecifier(Node *n) {
 
 			Node *OptTag_node = child->next;
 			// 如果OptTag有孩子,说明是有名结构定义(OptTag->ID)
-			if(child->children) {
+			if(OptTag_node->children) {
 				t->type_info.structure->name = malloc(sizeof(OptTag_node->children->value)+1);//ID是终结符，value就是ID名
 				strcpy(t->type_info.structure->name, OptTag_node->children->value);
 			} // 否则OptTag无孩子(OpttTag->e),说明是无名结构定义,什么也不做
@@ -363,13 +375,14 @@ Type StructSpecifier(Node *n) {
 					t->type_info.structure->varList = v;
 					// 无名结构体,无需插入至哈希表
 					if(t->type_info.structure->name == NULL) {
+						printf("why\n");
 						return t;
 					}
 					// 将定义好的结构体本身插入哈希表
 					// 结构体内部的变量不在此处插入
 					VarType tmp = malloc(sizeof(struct VarType_));
 					tmp->type = t;
-					tmp->name = malloc(sizeof(t->type_info.structure->name));
+					tmp->name = malloc(sizeof(t->type_info.structure->name)+1);
 					strcpy(tmp->name, t->type_info.structure->name);
 					int ret_code = insertVar(tmp);
 					// 结构体的名字和定义过的结构体或变量的名字重复
@@ -476,7 +489,7 @@ FuncType FunDec(Node* n,Type return_type)
 	Node* child=n->children;
 	FuncType func=malloc(sizeof(struct FuncType_));
 	func->isDefined=false;
-	func->name=malloc(sizeof(child->value));
+	func->name=malloc(sizeof(child->value)+1);
 	strcpy(func->name,child->value);
 	func->returnType=return_type;
 	func->row=child->row;
@@ -520,7 +533,7 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 	//printf("VARDEC\n");
 	if(!strcmp(child->name,"ID")){
 		VarType v=malloc(sizeof(struct VarType_));
-		v->name=malloc(sizeof(child->value));//变量名
+		v->name=malloc(sizeof(child->value)+1);//变量名
 		strcpy(v->name,child->value);
 		v->type=type;
 		//printf("%d\n",type->type);
@@ -535,7 +548,6 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 				printf("Error type 15 at line %d: Redefined field variable '%s'\n",child->row,v->name);
 			return NULL;
 		}
-		//printf("insert Done\n");
 		return v;
 	}
 	/*他这种写法很怪异
@@ -578,6 +590,7 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 
 //CompSt -> LC DefList StmtList RC  这个CoumpSt仅用于函数体，不用于结构体，故有返回值
 void CompSt(Node * n,Type return_type){
+	printf("CompSt\n");
 	Node* child=n->children->next;//DefList
 	DefList(child,FROM_COMPOUND);
 	child=child->next;//StmtList
@@ -845,7 +858,6 @@ bool Args(Node* n,VarType v){
 
 char* Type2String(Type t){
 	if(t==NULL)return "NULL";
-	printf("Type to String: %d\n",t->type);
 	switch (t->type)
 	{
 		case BASIC: case CONSTANT:
