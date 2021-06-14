@@ -65,6 +65,10 @@ struct FuncType_
 	FuncType next;// 哈希表同一表项中所构成的链表
 };
 
+void initHashTable(void);
+void printVarTable(void);
+void printFuncTable(void);
+
 unsigned int hash_pjw(char *name);
 int insertVar(VarType vl);
 int insertFunc(FuncType f);
@@ -94,6 +98,7 @@ void Stmt(Node *n,Type return_type);
 Type Exp(Node *n);
 Type BinaryExp(Node* left,Node* op,Node* right);
 bool Args(Node* n,VarType v);
+
 //TestFuntion
 char* Type2String(Type t);
 int String2Int(char *s);

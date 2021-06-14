@@ -13,6 +13,77 @@ unsigned int hash_pjw(char *name) {
 	return val;
 }
 
+void printVarTable(void) {
+	int i;
+	for(i = 0; i < TABLE_SIZE; i++) {
+		if(varTable[i]) {
+			VarType cur = varTable[i];
+			printf("index: %d\n", i);
+			while(cur) {
+				printf("\tname: %s, type: %s\n", cur->name, Type2String(cur->type));
+				cur = cur->next;
+			}
+		}
+	}
+}
+
+void printFuncTable(void) {
+	int i;
+	for(i = 0; i < TABLE_SIZE; i++) {
+		if(funcTable[i]) {
+			FuncType cur = funcTable[i];
+			printf("index: %d\n", i);
+			// while(cur) {
+				printf("  name: %s\n", cur->name);
+				printf("    isDefined: %d\n", cur->isDefined);
+				printf("    row: %d\n", cur->row);
+				printf("    returnType: %s\n", Type2String(cur->returnType)); 
+				// printf("    param:\n");
+				// VarType tmp = cur->param;
+				// while(tmp) {
+				// 	printf("      name: %s, type: %s\n", tmp->name, Type2String(tmp->type));
+				// 	tmp = tmp->next_field;
+				// }
+				// cur = cur->next;
+			// }
+		}
+	}
+}
+
+void initHashTable(void) {
+	// 需要在符号表中预先添加read和write,因为这两个函数中间代码的生成和普通函数是不同的
+	// int read(void); 返回值为读入的整数值
+	FuncType read = malloc(sizeof(struct FuncType_));
+	read->name = malloc(5);
+	strcpy(read->name, "read");
+	read->isDefined = true;
+	read->row = 0;
+	read->returnType = malloc(sizeof(struct Type_));
+	read->returnType->type = BASIC;
+	read->returnType->type_info.basic = INT;
+	read->param = NULL;
+	read->next = NULL;
+	insertFunc(read);
+
+	// int write(int); 参数为要输出的整数值,返回值固定为0
+	FuncType write = malloc(sizeof(struct FuncType_));
+	write->name = malloc(6);
+	strcpy(write->name, "write");
+	write->isDefined = true;
+	write->row = 0;
+	write->returnType = malloc(sizeof(struct Type_));
+	write->returnType->type = BASIC;
+	write->returnType->type_info.basic = INT;
+	write->param = malloc(sizeof(struct VarType_));
+	write->param->name = malloc(20);
+	strcpy(write->param->name, "write_param");
+	write->param->type = write->returnType;
+	write->param->next_field = NULL;
+	write->next = NULL;
+	insertFunc(write);
+	
+}
+
 // insertVar: 将变量符号插入符号哈希表
 // return: -1: 为空,不插入, 1: 该符号已存在, 0: 插入成功
 int insertVar(VarType vl) {
@@ -94,7 +165,7 @@ void insertParam(FuncType f) {
 		ret_code = insertVar(param);
 		if(ret_code == REDEFINE_ERROR) {
 			// Error type 3
-			printf("error type 3 at line %d: redefinition of variable '%s'\n", f->row, param->name);
+			printf("Error type 3 at line %d: Redefinition of variable '%s'\n", f->row, param->name);
 		}
 		param = param->next_field;
 	}
@@ -103,7 +174,7 @@ void insertParam(FuncType f) {
 //类型检查
 bool isTypeEqual(Type t1, Type t2) {
 	if(t1==NULL||t2==NULL){
-		printf("ERROR:Type param is NULL in isTypeEqual function!\n");
+		printf("ERROR: Type param is NULL in isTypeEqual function!\n");
 		return false;
 	}
 	if((t1->type==BASIC&&t2->type==CONSTANT)||(t1->type==CONSTANT&&t2->type==BASIC)){//变量和常数
@@ -202,10 +273,10 @@ void ExtDef(Node *n) {
 				int ret_code = insertFunc(f);
 				if(ret_code == REDEFINE_ERROR) {
 					// 函数重定义
-					printf("error type 4 at line %d: redefinition of function '%s'\n", f->row, f->name);
+					printf("Error type 4 at line %d: Redefinition of function '%s'\n", f->row, f->name);
 				} else if(ret_code == DEF_MISMATCH_DEC) {
 					// 当前定义和先前的声明不同
-					printf("error type 19 at line %d: definition of function '%s' is different from the previous declaration\n", f->row, f->name);
+					printf("Error type 19 at line %d: Definition of function '%s' is different from the previous declaration\n", f->row, f->name);
 				}
 				CompSt(child->next->next,t);
 				return;
@@ -215,10 +286,10 @@ void ExtDef(Node *n) {
 				int ret_code = insertFunc(f);
 				if(ret_code == 3) {
 					// 当前声明和先前的定义不同
-					printf("error type 19 at line %d: declaration of function '%s' is different from the previous definition\n", f->row, f->name);
+					printf("Error type 19 at line %d: Declaration of function '%s' is different from the previous definition\n", f->row, f->name);
 				} else if(ret_code == 4) {
 					// 当前声明和先前的声明不同
-					printf("error type 19 at line %d: declaration of function '%s' is different from the previous declaration\n", f->row, f->name);
+					printf("Error type 19 at line %d: Declaration of function '%s' is different from the previous declaration\n", f->row, f->name);
 				}
 				return;
 			}
@@ -297,7 +368,7 @@ Type StructSpecifier(Node *n) {
 					int ret_code = insertVar(tmp);
 					// 结构体的名字和定义过的结构体或变量的名字重复
 					if(ret_code == 1) {
-						printf("error type 16 at line %d: the name of struct '%s' duplicates name of another variable or struct", DefList_node->row, t->type_info.structure->name);
+						printf("Error type 16 at line %d: The name of struct '%s' duplicates name of another variable or struct", DefList_node->row, t->type_info.structure->name);
 						return NULL;
 					}
 					return t;
@@ -309,7 +380,7 @@ Type StructSpecifier(Node *n) {
 			VarType tmp = findSymbol(child->next->children->value);
 			if(!tmp || tmp->type->type != STRUCTURE || strcmp(tmp->name, tmp->type->type_info.structure->name)) {
 				// 结构体未定义
-				printf("error type 17 at line %d: undefined struct type '%s'\n", child->next->row, child->next->children->value);
+				printf("Error type 17 at line %d: Undefined struct type '%s'\n", child->next->row, child->next->children->value);
 				return NULL;
 			} else {
 				return tmp->type;
@@ -833,7 +904,7 @@ void printtype(Type t){
 		printf(" float ");
 	else if(t->type==STRUCTURE)
 		printf("struct %s ",t->type_info.structure->name);
-	else if(t->type==ARRAY){
+	else if(t->type==ARRAY) {
 		printtype(t->type_info.array.element);
 		printf("[]");
 	}
@@ -841,11 +912,11 @@ void printtype(Type t){
 
 void printNode(Node *n){
 	Node *child=n->children;
-	if(child==NULL){
+	if(child==NULL) {
 		printf(" %s",n->value);
 		return;
 	}
-	while(child!=NULL){
+	while(child!=NULL) {
 		printNode(child);
 		child=child->next;
 	}

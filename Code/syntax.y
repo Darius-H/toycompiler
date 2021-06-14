@@ -153,6 +153,11 @@ int main(int argc, char** argv)
 	if(errorFlag){	
 		Program(root);
 	}
+	printf("\n----------Var Table----------\n");
+	printVarTable();
+
+	printf("\n----------Func Table----------\n");
+	printFuncTable();
 	return 0;
 }
 

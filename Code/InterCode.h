@@ -10,15 +10,14 @@ typedef struct InterCode_* InterCode;
 
 struct Operand_ {
 	enum {
-		VARIABLE, CONSTANT, ADDRESS,
-
-			
-
+		VAR, CONSTANT_OP, VAR_ADDRESS, LABEL_OP, FUNCTION_OP,
+		TMP_VAR, TMP_VAR_ADDRESS
 	} kind;
+
 	union {
-		int var_no;
-		char* value; //?
-		Operand name; //?
+		int var_no; // TMP_VAR, LABEL_OPs, 
+		char* value; // VAR, CONSTANT, FUNCTION_OP
+		Operand var; // VAR_ADDRESS, TMP_VAR_ADDRESS 地址所对应的变量
 	} u;
 	Operand next; //?
 };
