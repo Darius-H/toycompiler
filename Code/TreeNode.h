@@ -1,5 +1,6 @@
-#ifndef _TREE_NODE_H
-#define _TREE_NODE_H
+#ifndef __TREE_NODE__
+#define __TREE_NODE__
+
 #define MAX_NAME 32
 #define MAX_VALUE 32
 #include <stdio.h> 
