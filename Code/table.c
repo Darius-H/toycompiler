@@ -8,7 +8,7 @@ unsigned int hash_pjw(char *name) {
 	unsigned int val = 0, i;
 	for(; *name; ++name) {
 		val = (val << 2) + *name;
-		if(i = val & ~TABLE_SIZE) val = (val ^ (i >> 12)) & TABLE_SIZE;
+		if((i = val) & ~TABLE_SIZE) val = (val ^ (i >> 12)) & TABLE_SIZE;
 	}
 	return val;
 }
@@ -53,35 +53,38 @@ void printFuncTable(void) {
 void initHashTable(void) {
 	// 需要在符号表中预先添加read和write,因为这两个函数中间代码的生成和普通函数是不同的
 	// int read(void); 返回值为读入的整数值
-	FuncType read = malloc(sizeof(struct FuncType_));
-	read->name = malloc(5);
+	FuncType read = (FuncType)malloc(sizeof(struct FuncType_));
+	read->name = (char*)malloc(16);
 	strcpy(read->name, "read");
 	read->isDefined = true;
 	read->row = 0;
-	read->returnType = malloc(sizeof(struct Type_));
+	read->returnType = (Type)malloc(sizeof(struct Type_));
 	read->returnType->type = BASIC;
 	read->returnType->type_info.basic = INT_TYPE;
 	read->param = NULL;
 	read->next = NULL;
-	insertFunc(read);
+	int ret = insertFunc(read);
+	printf("%d\n", ret);
 
 	// int write(int); 参数为要输出的整数值,返回值固定为0
-	FuncType write = malloc(sizeof(struct FuncType_));
-	write->name = malloc(6);
+	FuncType write = (FuncType)malloc(sizeof(struct FuncType_));
+	write->name = (char*)malloc(16);
 	strcpy(write->name, "write");
 	write->isDefined = true;
 	write->row = 0;
-	write->returnType = malloc(sizeof(struct Type_));
+	write->returnType = (Type)malloc(sizeof(struct Type_));
 	write->returnType->type = BASIC;
 	write->returnType->type_info.basic = INT_TYPE;
-	write->param = malloc(sizeof(struct VarType_));
-	write->param->name = malloc(20);
+	write->param = (VarType)malloc(sizeof(struct VarType_));
+	write->param->name = (char*)malloc(16);
 	strcpy(write->param->name, "write_param");
-	write->param->type = write->returnType;
+	write->returnType = (Type)malloc(sizeof(struct Type_));
+	write->returnType->type = BASIC;
+	write->returnType->type_info.basic = INT_TYPE;
 	write->param->next_field = NULL;
 	write->next = NULL;
-	insertFunc(write);
-	
+	ret = insertFunc(write);
+	printf("%d\n", ret);
 }
 
 // insertVar: 将变量符号插入符号哈希表
@@ -352,19 +355,22 @@ Type Specifier(Node *n) {
 // 					| STRUCT Tag
 //OptTag和Tag不需要定义函数，直接在StructSpecifier中就解决了
 Type StructSpecifier(Node *n) {
+	printf("StructSpecifier\n");
 	Node *child = n->children;
 	if(!strcmp(child->name, "STRUCT")) {
+		printf("STRUCT\n");
 		if(!strcmp(child->next->name, "OptTag")) {//首次定义结构体变量
-			Type t = malloc(sizeof(struct Type_));
+			printf("OptTag\n");
+			Type t = (Type)malloc(sizeof(struct Type_));
 			t->type = STRUCTURE;
-			t->type_info.structure = malloc(sizeof(struct Structure_));
+			t->type_info.structure = (Structure)malloc(sizeof(struct Structure_));
 			t->type_info.structure->name = NULL;
 			t->type_info.structure->varList = NULL;
 
 			Node *OptTag_node = child->next;
 			// 如果OptTag有孩子,说明是有名结构定义(OptTag->ID)
 			if(OptTag_node->children) {
-				t->type_info.structure->name = malloc(sizeof(OptTag_node->children->value)+1);//ID是终结符，value就是ID名
+				t->type_info.structure->name = (char*)malloc(sizeof(OptTag_node->children->value)+1);//ID是终结符，value就是ID名
 				strcpy(t->type_info.structure->name, OptTag_node->children->value);
 			} // 否则OptTag无孩子(OpttTag->e),说明是无名结构定义,什么也不做
 			Node *tmp = OptTag_node->next;
@@ -380,9 +386,9 @@ Type StructSpecifier(Node *n) {
 					}
 					// 将定义好的结构体本身插入哈希表
 					// 结构体内部的变量不在此处插入
-					VarType tmp = malloc(sizeof(struct VarType_));
+					VarType tmp = (VarType)malloc(sizeof(struct VarType_));
 					tmp->type = t;
-					tmp->name = malloc(sizeof(t->type_info.structure->name)+1);
+					tmp->name = (char*)malloc(sizeof(t->type_info.structure->name)+1);
 					strcpy(tmp->name, t->type_info.structure->name);
 					int ret_code = insertVar(tmp);
 					// 结构体的名字和定义过的结构体或变量的名字重复
@@ -395,6 +401,9 @@ Type StructSpecifier(Node *n) {
 			}
 		// 根据已有的结构定义新的结构变量
 		} else if(!strcmp(child->next->name, "Tag")) {
+			printf("Tag\n");
+			if(!child->next->children)
+				return NULL;
 			// 查找变量符号表中是否已经定义了该结构
 			VarType tmp = findSymbol(child->next->children->value);
 			if(!tmp || tmp->type->type != STRUCTURE || strcmp(tmp->name, tmp->type->type_info.structure->name)) {
@@ -487,15 +496,16 @@ FuncType FunDec(Node* n,Type return_type)
 {
 	//printf("FunDec\n");
 	Node* child=n->children;
-	FuncType func=malloc(sizeof(struct FuncType_));
+	FuncType func=(FuncType)malloc(sizeof(struct FuncType_));
 	func->isDefined=false;
-	func->name=malloc(sizeof(child->value)+1);
+	func->name=(char*)malloc(sizeof(child->value)+1);
 	strcpy(func->name,child->value);
 	func->returnType=return_type;
 	func->row=child->row;
 	Node* child3=child->next->next;//右括号或VarList
 	if(!strcmp(child3->name,"VarList"))func->param=VarList(child3);
 	else func->param=NULL;
+	return NULL;
 }
 
 
@@ -529,14 +539,19 @@ VarType ParamDec(Node*n){
 //VarDec -> ID
 // 		  | VarDec LB INT RB
 VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
+	printf("VarDec\n");
 	Node* child=n->children;
-	//printf("VARDEC\n");
+	if(!child)
+		return NULL;
 	if(!strcmp(child->name,"ID")){
-		VarType v=malloc(sizeof(struct VarType_));
-		v->name=malloc(sizeof(child->value)+1);//变量名
+		printf("ID\n");
+		VarType v = (VarType)malloc(sizeof(struct VarType_));
+		printf("hello");
+		v->name = (char*)malloc(sizeof(child->value)+1);//变量名
+		printf("hello2\n");
 		strcpy(v->name,child->value);
-		v->type=type;
-		//printf("%d\n",type->type);
+		v->type = type;
+		printf("%d\n",type->type);
 		v->next=NULL;
 		v->next_field=NULL;
 		if(place==FROM_PARAM)return v;//在函数参数列表中定义的变量，不需要插入变量表，只需要赋值给func->param
@@ -575,7 +590,7 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 	}
 	*/
 	else if(!strcmp(child->name,"VarDec")){//数组
-		Type NewType=malloc(sizeof(struct Type_));
+		Type NewType=(Type)malloc(sizeof(struct Type_));
 		NewType->type=ARRAY;
 		NewType->type_info.array.size=atoi(child->next->next->value);
 		NewType->type_info.array.element=type;
@@ -600,6 +615,7 @@ void CompSt(Node * n,Type return_type){
 //StmtList -> Stmt StmtList
 //			| e
 void StmtList(Node *n,Type return_type){
+	printf("StmtList\n");
 	Node* child=n->children;
 	if(child){
 		Stmt(child,return_type);
@@ -617,7 +633,10 @@ void StmtList(Node *n,Type return_type){
 //	   |  WHILE LP Exp RP Stmt
 void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismatched	
 {
+	printf("Stmt\n");
 	Node*child=n->children;
+	if(!child)
+		return;
 	if(!strcmp(child->name,"Exp")){
 		Exp(child);
 		return;
@@ -687,9 +706,12 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 	;*/
 //返回值要说明Exp的值的类型
 Type Exp(Node *n){
+	printf("Exp\n");
 	Node *child=n->children;
+	if(!child)
+		return NULL;
 	if(!strcmp(child->name,"Exp")){
-		if(!strcmp(child->name,"LB")){//array
+		if(!strcmp(child->next->name,"LB")){//array
 			Type t1=Exp(child);
 			if(t1==NULL)return NULL;
 			if(t1->type!=ARRAY)
@@ -707,7 +729,8 @@ Type Exp(Node *n){
 			}
 			return t1->type_info.array.element;
 		}
-		else if(!strcmp(child->name,"DOT")){//struct
+		else if(!strcmp(child->next->name,"DOT")){//struct
+			printf("here DOT\n");
 			Type t1=Exp(child);
 			if(t1==NULL)return NULL;
 			if(t1->type!=STRUCTURE)
@@ -723,10 +746,11 @@ Type Exp(Node *n){
 					return v->type;
 				v=v->next_field;
 			}
-			printf("Error type 14 at line %d: Un-existed field '%s‘\n",child->row,child->value);
+			printf("Error type 14 at line %d: Un-existed field '%s'\n",child->row,child->value);
 			return NULL;
 		}
 		else{//binary exp
+			printf("here\n");
 			return BinaryExp(child,child->next,child->next->next);
 		}
 	}
@@ -794,33 +818,37 @@ Type Exp(Node *n){
 		}
 	}
 	else if(!strcmp(child->name,"INT")){
-		Type t=malloc(sizeof(struct Type_));
+		Type t=(Type)malloc(sizeof(struct Type_));
 		t->type=CONSTANT;
 		t->type_info.basic=INT_TYPE;
 		return t;
 	}
 	else if(!strcmp(child->name,"FLOAT")){
-		Type t=malloc(sizeof(struct Type_));
+		Type t=(Type)malloc(sizeof(struct Type_));
 		t->type=CONSTANT;
 		t->type_info.basic=FLOAT_TYPE;
 		return t;
 	}
 	else{
 		printf("CODE ERROR:in function exp");
+		return NULL;
 	}
 }
 Type BinaryExp(Node* left,Node* op,Node* right){
+	printf("BinaryExp\n");
 	if(!strcmp(op->name,"ASSIGNOP")){
 		Type leftType=Exp(left);
+		if(!leftType)
+			return NULL;
 		if(leftType->type!=BASIC){
-			printf("Error type 6 at line %d: The left-hand side of an assignment must be a variable\n",left->row);
+			printf("Error type 6 at line %d: The left-hand side of an assignment must be a variable\n", left->row);
 		}
 		Type rightType=Exp(right);
 		if(leftType==NULL||rightType==NULL)return NULL;
 		if(isTypeEqual(leftType,rightType))return leftType;
 		else
 		{
-			printf("Error type 5 at line %d: Type mismatched\n",left->row);
+			printf("Error type 5 at line %d: Type mismatched\n", left->row);
 			return NULL;
 		}
 	}
@@ -838,6 +866,7 @@ Type BinaryExp(Node* left,Node* op,Node* right){
 	}
 	else{
 		printf("ERROR:unkonwn operand %s at line %d\n",op->value,op->row);
+		return NULL;
 	}
 }
 //Args -> Exp COMMA Args

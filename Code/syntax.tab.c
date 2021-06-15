@@ -2161,7 +2161,8 @@ int main(int argc, char** argv)
 	yyparse();
     printf("-----------Parse Tree-----------\n");
 	printTree(root,0);
-	if(errorFlag){	
+	if(errorFlag){
+		// initHashTable();
 		Program(root);
 	}
 	printf("\n-----------Var Table----------\n");

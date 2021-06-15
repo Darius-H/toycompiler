@@ -16,11 +16,11 @@ PtrToNode NewNode(char *name,char *value)
 char* Mystrcpy(char* des,char* src,int maxsize)
 {
     if(des==NULL||src==NULL){
-        printf("Mystrcpy ERROR:des or src is NULL\n");
+        printf("Mystrcpy ERROR: des or src is NULL\n");
         return des;
     }
     int i=0;
-    while((*(des++)=*(src++))&&i<maxsize)i++;
+    while(i<maxsize&&(*(des++)=*(src++)))i++;
 	des[i-1]='\0';
 	return des;
 }

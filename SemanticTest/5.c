@@ -7,5 +7,5 @@ int func(int a);
 int func(struct Position p);
 int main()
 {
-	func(s.x);
+	s.z = 1;
 }
