@@ -1,11 +1,10 @@
 //int x;
-/*
 int main(int m, float b){
     int x;
     int y;
     x=x*3+y;
 }
-*/
+/*
 struct Position
 {
 int  x,y;
@@ -17,3 +16,4 @@ int main()
 {
 	s.z = 1;
 }
+*/

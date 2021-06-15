@@ -370,7 +370,7 @@ Type StructSpecifier(Node *n) {
 			Node *OptTag_node = child->next;
 			// 如果OptTag有孩子,说明是有名结构定义(OptTag->ID)
 			if(OptTag_node->children) {
-				t->type_info.structure->name = (char*)malloc(sizeof(OptTag_node->children->value)+1);//ID是终结符，value就是ID名
+				t->type_info.structure->name = (char*)malloc(sizeof(OptTag_node->children->value));//ID是终结符，value就是ID名
 				strcpy(t->type_info.structure->name, OptTag_node->children->value);
 			} // 否则OptTag无孩子(OpttTag->e),说明是无名结构定义,什么也不做
 			Node *tmp = OptTag_node->next;
@@ -388,7 +388,7 @@ Type StructSpecifier(Node *n) {
 					// 结构体内部的变量不在此处插入
 					VarType tmp = (VarType)malloc(sizeof(struct VarType_));
 					tmp->type = t;
-					tmp->name = (char*)malloc(sizeof(t->type_info.structure->name)+1);
+					tmp->name = (char*)malloc(sizeof(t->type_info.structure->name));
 					strcpy(tmp->name, t->type_info.structure->name);
 					int ret_code = insertVar(tmp);
 					// 结构体的名字和定义过的结构体或变量的名字重复
@@ -498,7 +498,7 @@ FuncType FunDec(Node* n,Type return_type)
 	Node* child=n->children;
 	FuncType func=(FuncType)malloc(sizeof(struct FuncType_));
 	func->isDefined=false;
-	func->name=(char*)malloc(sizeof(child->value)+1);
+	func->name=(char*)malloc(sizeof(child->value));
 	strcpy(func->name,child->value);
 	func->returnType=return_type;
 	func->row=child->row;
@@ -547,7 +547,7 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 		printf("ID\n");
 		VarType v = (VarType)malloc(sizeof(struct VarType_));
 		printf("hello");
-		v->name = (char*)malloc(sizeof(child->value)+1);//变量名
+		v->name = (char*)malloc(sizeof(child->value));//变量名
 		printf("hello2\n");
 		strcpy(v->name,child->value);
 		v->type = type;
