@@ -317,7 +317,7 @@ void ExtDecList(Node *n, Type t) {
 	Node *child = n->children;
 	if(!child)
 		return;
-	VarType v = VarDec(child, t, FROM_GLOBAL);
+	VarDec(child, t, FROM_GLOBAL);
 	if(child->next) {
 		if(!strcmp(child->next->name, "COMMA") && !strcmp(child->next->next->name, "ExtDecList")) {
 			ExtDecList(child->next->next, t);
@@ -505,7 +505,7 @@ FuncType FunDec(Node* n,Type return_type)
 	Node* child3=child->next->next;//右括号或VarList
 	if(!strcmp(child3->name,"VarList"))func->param=VarList(child3);
 	else func->param=NULL;
-	return NULL;
+	return func;
 }
 
 
@@ -600,6 +600,7 @@ VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
 	}
 	else {
 		printf("CODE ERROR in VarDec function\n");
+		return NULL;
 	}
 }
 

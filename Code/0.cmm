@@ -1,6 +1,19 @@
 //int x;
+/*
 int main(int m, float b){
     int x;
     int y;
     x=x*3+y;
+}
+*/
+struct Position
+{
+int  x,y;
+};
+struct Position s;
+int func(int a);
+int func(struct Position p);
+int main()
+{
+	s.z = 1;
 }
