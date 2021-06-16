@@ -70,8 +70,8 @@
 /* Line 189 of yacc.c  */
 #line 1 "syntax.y"
 
-	#include"TreeNode.h"
-	#include"lex.yy.c"
+	#include "TreeNode.h"
+	#include "lex.yy.c"
 	#include "table.h"
 	PtrToNode root;
 
@@ -2162,7 +2162,7 @@ int main(int argc, char** argv)
     printf("-----------Parse Tree-----------\n");
 	printTree(root,0);
 	if(errorFlag){
-		// initHashTable();
+		initHashTable();
 		Program(root);
 	}
 	printf("\n-----------Var Table----------\n");
@@ -2170,6 +2170,9 @@ int main(int argc, char** argv)
 
 	printf("\n----------Func Table----------\n");
 	printFuncTable();
+
+	printf("\n----------Inter Code----------\n");
+	printInterCode();
 	return 0;
 }
 

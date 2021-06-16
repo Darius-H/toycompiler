@@ -4,6 +4,7 @@
 	int errorFlag=1;
 	extern FILE* yyin;
 	static void comment(FILE* f);
+    int yyerror(char* msg);
 %}
 
 space [ \t]+

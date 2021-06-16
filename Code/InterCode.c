@@ -1,7 +1,10 @@
-#include <InterCode.h>
+#include "InterCode.h"
 
 InterCode head = NULL;
 InterCode tail = NULL;
+
+int varNo = 1;
+int labelNo = 1;
 
 void insertInterCode(InterCode i) {
 	i->prev = NULL;
@@ -75,28 +78,28 @@ void printInterCode(void) {
 				printf(" := ");
 				printOperand(tmp->u.assign.right);
 				break;
-			case ADD:
+			case ADD_KIND:
 				printOperand(tmp->u.binop.result);
 				printf(" := ");
 				printOperand(tmp->u.binop.op1);
 				printf(" + ");
 				printOperand(tmp->u.binop.op2);
 				break;
-			case SUB:
+			case SUB_KIND:
 				printOperand(tmp->u.binop.result);
 				printf(" := ");
 				printOperand(tmp->u.binop.op1);
 				printf(" - ");
 				printOperand(tmp->u.binop.op2);
 				break;
-			case MUL:
+			case MUL_KIND:
 				printOperand(tmp->u.binop.result);
 				printf(" := ");
 				printOperand(tmp->u.binop.op1);
 				printf(" * ");
 				printOperand(tmp->u.binop.op2);
 				break;
-			case DIV:
+			case DIV_KIND:
 				printOperand(tmp->u.binop.result);
 				printf(" := ");
 				printOperand(tmp->u.binop.op1);
@@ -119,7 +122,7 @@ void printInterCode(void) {
 				printf(" GOTO ");
 				printOperand(tmp->u.ifgoto.label);
 				break;
-			case RETURN:
+			case RETURN_KIND:
 				printf("RETURN ");
 				printOperand(tmp->u.unary.op);
 				break;

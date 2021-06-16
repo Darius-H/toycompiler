@@ -5,8 +5,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct Operand_;
+struct InterCode_;
+
 typedef struct Operand_* Operand;
 typedef struct InterCode_* InterCode;
+
+extern InterCode head;
+extern InterCode tail;
+
+extern int varNo;
+extern int labelNo;
 
 struct Operand_ {
 	enum {
@@ -19,14 +28,14 @@ struct Operand_ {
 		char* value; // VAR, CONSTANT, FUNCTION_OP
 		Operand var; // VAR_ADDRESS, TMP_VAR_ADDRESS 地址所对应的变量
 	} u;
-	Operand next; //?
+	Operand next;
 };
 
 struct InterCode_ {
 	enum {
 		LABEL, FUNCTION, ASSIGN, 
-		ADD, SUB, MUL, DIV, RIGHTAT,
-		GOTO, IFGOTO, RETURN, DEC,
+		ADD_KIND, SUB_KIND, MUL_KIND, DIV_KIND, RIGHTAT,
+		GOTO, IFGOTO, RETURN_KIND, DEC,
 		ARG, CALL, PARAM,
 		READ, WRITE
 	} kind;
@@ -45,5 +54,9 @@ struct InterCode_ {
 	} u;
 	InterCode prev, next;
 };
+
+void insertInterCode(InterCode i);
+void printOperand(Operand o);
+void printInterCode(void);
 
 #endif

@@ -6,6 +6,7 @@
 #include "string.h"
 #include "stdbool.h"
 #include "TreeNode.h"
+#include "InterCode.h"
 
 #define TABLE_SIZE 0x3fff
 #define FROM_GLOBAL 1
@@ -100,6 +101,7 @@ Type BinaryExp(Node* left,Node* op,Node* right);
 bool Args(Node* n,VarType v);
 
 //TestFuntion
+int getTypeSize(Type t);
 char* Type2String(Type t);
 int String2Int(char *s);
 void printparam(VarType v);

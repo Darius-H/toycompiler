@@ -38,11 +38,16 @@ void printFuncTable(void) {
 				printf("    isDefined: %d\n", cur->isDefined);
 				printf("    row: %d\n", cur->row);
 				printf("    returnType: %s\n", Type2String(cur->returnType)); 
-				printf("    param:\n");
+				
 				VarType tmp = cur->param;
-				while(tmp) {
-					printf("      name: %s, type: %s\n", tmp->name, Type2String(tmp->type));
-					tmp = tmp->next_field;
+				if(!tmp) {
+					printf("    param: empty\n");
+				} else {
+					printf("    param:\n");
+					while(tmp) {
+						printf("      name: %s, type: %s\n", tmp->name, Type2String(tmp->type));
+						tmp = tmp->next_field;
+					}
 				}
 				cur = cur->next;
 			}
@@ -51,7 +56,7 @@ void printFuncTable(void) {
 }
 
 void initHashTable(void) {
-	// 需要在符号表中预先添加read和write,因为这两个函数中间代码的生成和普通函数是不同的
+	// 需要在符号表中预先添加read和write,因为在中间代码的生成过程中这两个函数和普通函数是不同的
 	// int read(void); 返回值为读入的整数值
 	FuncType read = (FuncType)malloc(sizeof(struct FuncType_));
 	read->name = (char*)malloc(16);
@@ -77,6 +82,9 @@ void initHashTable(void) {
 	write->returnType->type_info.basic = INT_TYPE;
 	write->param = (VarType)malloc(sizeof(struct VarType_));
 	write->param->name = (char*)malloc(16);
+	write->param->type = (Type)malloc(sizeof(struct Type_));
+	write->param->type->type = BASIC;
+	write->param->type->type_info.basic = INT_TYPE;
 	strcpy(write->param->name, "write_param");
 	write->returnType = (Type)malloc(sizeof(struct Type_));
 	write->returnType->type = BASIC;
@@ -290,6 +298,29 @@ void ExtDef(Node *n) {
 				} else if(ret_code == DEF_MISMATCH_DEC) {
 					// 当前定义和先前的声明不同
 					printf("Error type 19 at line %d: Definition of function '%s' is different from the previous declaration\n", f->row, f->name);
+				} else {
+					// 正确的定义,开始中间代码生成
+					// 插入函数定义的中间代码
+					Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+					InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+					tmp_op->kind = FUNCTION_OP;
+					tmp_op->u.value = f->name;
+					tmp_code->kind = FUNCTION;
+					tmp_code->u.unary.op = tmp_op;
+					insertInterCode(tmp_code);
+					// 插入函数参数声明的中间代码
+					VarType param = f->param;
+					while(param) {
+						tmp_op = (Operand)malloc(sizeof(struct Operand_));
+						tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+						tmp_op->kind = VAR;
+						tmp_op->u.value = param->name;
+						tmp_code->kind = PARAM;
+						tmp_code->u.unary.op = tmp_op;
+						insertInterCode(tmp_code);
+
+						param = param->next_field;
+					}
 				}
 				CompSt(child->next->next,t);
 				return;
@@ -317,7 +348,33 @@ void ExtDecList(Node *n, Type t) {
 	Node *child = n->children;
 	if(!child)
 		return;
-	VarDec(child, t, FROM_GLOBAL);
+	VarType tmp = VarDec(child, t, FROM_GLOBAL);
+	// VarDec返回单个变量或数组变量,这里需要为数组变量分配内存空间,生成中间代码
+	if(tmp && tmp->type->type == ARRAY) {
+		Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+		InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+
+		// DEC 为数组开辟空间 字节为单位
+		// DEC t1 [size]
+		tmp_op->kind = TMP_VAR;
+		tmp_op->u.var_no = varNo++;
+		tmp_code->kind = DEC;
+		tmp_code->u.dec.op = tmp_op;
+		tmp_code->u.dec.size = getTypeSize(tmp->type);
+		insertInterCode(tmp_code);
+
+		// RIGHTAT 将数组的地址赋给原本的变量名
+		// array := &t1
+		Operand array_op = (Operand)malloc(sizeof(struct Operand_));
+		array_op->kind = VAR;
+		array_op->u.value = tmp->name;
+		tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = RIGHTAT;
+		tmp_code->u.assign.left = array_op;
+		tmp_code->u.assign.right = tmp_op;
+		insertInterCode(tmp_code);
+
+	}
 	if(child->next) {
 		if(!strcmp(child->next->name, "COMMA") && !strcmp(child->next->next->name, "ExtDecList")) {
 			ExtDecList(child->next->next, t);
@@ -377,7 +434,7 @@ Type StructSpecifier(Node *n) {
 			if(!strcmp(tmp->name, "LC")) {//如果是首次定义结构体，定义内部结构
 				Node *DefList_node = tmp->next;
 				if(!strcmp(DefList_node->name, "DefList")) {
-					VarType v = DefList(DefList_node,FROM_STRUCT);
+					VarType v = DefList(DefList_node, FROM_STRUCT);
 					t->type_info.structure->varList = v;
 					// 无名结构体,无需插入至哈希表
 					if(t->type_info.structure->name == NULL) {
@@ -472,17 +529,17 @@ VarType DecList(Node* n,Type type,int place){
 //Dec -> VarDec
 //	   | VarDec ASSIGNOP Exp
 //FROM_STRUCT:不允许使用Dec -> VarDec ASSIGNOP Exp的规则，FROM_COUMPOUND:两个规则都可以
-VarType Dec(Node* n,Type type,int place){
-	Node* child=n->children;
-	VarType v=VarDec(child,type,place);
+VarType Dec(Node* n, Type type, int place){
+	Node* child = n->children;
+	VarType v = VarDec(child, type, place);
 	if(child->next!=NULL){		
-		if(place==FROM_STRUCT){	
-			printf("Error type 15 at line %d:variable initialized in struct is not allowed.In sturct %s\n",child->row,v->name);
+		if(place = FROM_STRUCT) {	
+			printf("Error type 15 at line %d: Variable initialized in struct '%s' is not allowed\n",child->row,v->name);
 			return v;
 		}
-		child=child->next->next;//Exp
-		Type t=Exp(child);
-		if(!isTypeEqual(type,t)){
+		child = child->next->next;//Exp
+		Type t = Exp(child);
+		if(!isTypeEqual(type,t)) {
 			printf("Error type 5 at line %d: The type mismatched\n",child->row);
 		}
 	}
@@ -538,26 +595,22 @@ VarType ParamDec(Node*n){
 
 //VarDec -> ID
 // 		  | VarDec LB INT RB
-VarType VarDec(Node* n,Type type,int place){//将定义的变量插入变量表
+VarType VarDec(Node* n,Type type,int place){ //将定义的变量插入变量表
 	printf("VarDec\n");
 	Node* child=n->children;
 	if(!child)
 		return NULL;
 	if(!strcmp(child->name,"ID")){
-		printf("ID\n");
 		VarType v = (VarType)malloc(sizeof(struct VarType_));
-		printf("hello");
-		v->name = (char*)malloc(sizeof(child->value));//变量名
-		printf("hello2\n");
+		v->name = (char*)malloc(sizeof(child->value)); //变量名
 		strcpy(v->name,child->value);
 		v->type = type;
-		printf("%d\n",type->type);
 		v->next=NULL;
 		v->next_field=NULL;
-		if(place==FROM_PARAM)return v;//在函数参数列表中定义的变量，不需要插入变量表，只需要赋值给func->param
-		//printf("insert Start\n");
-		if(insertVar(v)==REDEFINE_ERROR){
-			if(place==FROM_GLOBAL||place==FROM_COMPOUND)//暂时不区分全局变量和域变量
+		if(place == FROM_PARAM)
+			return v; //在函数参数列表中定义的变量，不需要插入变量表
+		if(insertVar(v) == REDEFINE_ERROR){
+			if(place == FROM_GLOBAL || place == FROM_COMPOUND)//暂时不区分全局变量和域变量
 				printf("Error type 3 at line %d: Redefined global variable'%s'\n",child->row,v->name);	
 			else //来自结构体
 				printf("Error type 15 at line %d: Redefined field variable '%s'\n",child->row,v->name);
@@ -886,16 +939,66 @@ bool Args(Node* n,VarType v){
 	return Args(child->next->next,v->next_field);
 }
 
+int getTypeSize(Type t) {
+	if(t->type == BASIC || t->type == CONSTANT) {
+		// int 和 float 都是四字节
+		return 4;
+	} else if(t->type == ARRAY) {
+		// 如果数组元素也是数组类型的,规定不支持高维数组
+		if(t->type_info.array.element->type == ARRAY) {
+			printf("Fatal error: Two dimensional and higher dimensional arrays are not supported\n");
+			exit(0);
+		} else {
+			int element_size = getTypeSize(t->type_info.array.element);
+			int count = t->type_info.array.size;
+			return element_size * count;
+		}
+	} else if(t->type == STRUCTURE) {
+		int size = 0;
+		if(t->type_info.structure) {
+			VarType cur = t->type_info.structure->varList;
+			while(cur) {
+				size += getTypeSize(cur->type);
+				cur = cur->next_field;
+			}
+		}
+		return size;
+	}
+	return 0;
+}
+
 char* Type2String(Type t){
-	if(t==NULL)return "NULL";
-	switch (t->type)
-	{
-		case BASIC: case CONSTANT:
-			if(t->type_info.basic==INT_TYPE) return "int";
-			else return "float";
-		case ARRAY:return "ARRAY";
-		case STRUCTURE:	return "STRUCTURE";
-		default: return "unknown TYPE";
+	if(t == NULL) 
+		return "NULL";
+	if(t->type == BASIC || t->type == CONSTANT) {
+		if(t->type_info.basic == INT_TYPE)
+			return "int";
+		else
+			return "float";
+	} else if(t->type == ARRAY) {
+		char *res = (char*)malloc(50);
+		int array_size = t->type_info.array.size;
+		char *array_type = Type2String(t->type_info.array.element);
+		sprintf(res, "ARRAY type{ %s } size %d", array_type, array_size);
+		return res;
+	} else if(t->type == STRUCTURE) {
+		char *res = (char*)malloc(100);
+		char *struct_name = t->type_info.structure->name;
+		sprintf(res, "STURCTURE %s { ", struct_name);
+		VarType cur = t->type_info.structure->varList;
+		while(cur) {
+			strcat(res, cur->name);
+			strcat(res, " ");
+			strcat(res, Type2String(cur->type));
+			if(cur->next_field)
+				strcat(res, ", ");
+			else
+				strcat(res, " }");
+			cur = cur->next_field;
+		}
+		return res;
+	} else {
+		return "UNKNOWN TYPE";
 	}
 }
 
