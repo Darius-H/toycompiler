@@ -478,50 +478,50 @@ Type StructSpecifier(Node *n) {
 
 // DefList-> Def DefList
 //			| e
-//变量定义和声明：place是该非终结符被定义的地方。
-VarType DefList(Node *n,int place) {//Struct中的DefList不允许声明时赋值，CompoundStatement中的允许赋值
+//变量定义和声明：src_type是该非终结符被定义的地方。
+VarType DefList(Node *n,int src_type) {//Struct中的DefList不允许声明时赋值，CompoundStatement中的允许赋值
 	Node *child = n->children;
 	if(child){	//存在声明
 		VarType v;
-		v=Def(child,place);
+		v=Def(child,src_type);
 		child=child->next;//DefList
 		VarType tmp=v;
 		if(v!=NULL){			//Def可能定义了多个变量
 			while(tmp->next_field!=NULL)tmp=tmp->next_field;
-			tmp->next_field=DefList(child,place);
+			tmp->next_field=DefList(child,src_type);
 		}
-		else v=DefList(child,place);
+		else v=DefList(child,src_type);
 		return v;
 	}
 	else return NULL;
 }
 
 //Def -> Specifier DecList SEMI
-VarType Def(Node* n,int place){
+VarType Def(Node* n,int src_type){
 	//printf("Def\n");
 	Node* child=n->children;
 	VarType v;
 	Type type=Specifier(child);
 	//printf("%d\n",type->type);
 	child=child->next;
-	v=DecList(child,type,place);	
+	v=DecList(child,type,src_type);	
 	return v;
 }
 
 //DecList -> Dec
 //		   | Dec COMMA DecList
-VarType DecList(Node* n,Type type,int place){
+VarType DecList(Node* n,Type type,int src_type){
 	Node* child=n->children;
-	VarType v=Dec(child,type,place);
+	VarType v=Dec(child,type,src_type);
 	if(child->next!=NULL){
 		child=child->next->next;//DecList
 		if(v!=NULL)
 		{
 			VarType tmp=v;
 			while(tmp->next_field!=NULL)tmp=tmp->next_field;
-			tmp->next_field=DecList(child,type,place);
+			tmp->next_field=DecList(child,type,src_type);
 		}
-		else v=DecList(child,type,place);
+		else v=DecList(child,type,src_type);
 	}
 	return v;
 }
@@ -529,19 +529,52 @@ VarType DecList(Node* n,Type type,int place){
 //Dec -> VarDec
 //	   | VarDec ASSIGNOP Exp
 //FROM_STRUCT:不允许使用Dec -> VarDec ASSIGNOP Exp的规则，FROM_COUMPOUND:两个规则都可以
-VarType Dec(Node* n, Type type, int place){
+VarType Dec(Node* n, Type type, int src_type){
 	Node* child = n->children;
-	VarType v = VarDec(child, type, place);
+	VarType v = VarDec(child, type, src_type);
+	if(!v)
+		return NULL;
+	// 为局部数组变量申请空间
+	if(v->type->type == ARRAY && src_type == FROM_COMPOUND) {
+		Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+		InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+
+		// DEC t1 [size]
+		tmp_op->kind = TMP_VAR;
+		tmp_op->u.var_no = varNo++;
+		tmp_code->kind = DEC;
+		tmp_code->u.dec.op = tmp_op;
+		tmp_code->u.dec.size = getTypeSize(v->type);
+		insertInterCode(tmp_code);
+
+		// array := &t1
+		Operand array_op = (Operand)malloc(sizeof(struct Operand_));
+		array_op->kind = VAR;
+		array_op->u.value = v->name;
+		tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = RIGHTAT;
+		tmp_code->u.assign.left = array_op;
+		tmp_code->u.assign.right = tmp_op;
+		insertInterCode(tmp_code);
+	}
+	// 局部变量赋初值
 	if(child->next!=NULL){		
-		if(place = FROM_STRUCT) {	
+		if(src_type == FROM_STRUCT) {	
 			printf("Error type 15 at line %d: Variable initialized in struct '%s' is not allowed\n",child->row,v->name);
 			return v;
 		}
-		child = child->next->next;//Exp
-		Type t = Exp(child);
-		if(!isTypeEqual(type,t)) {
+		Operand place = (Operand)malloc(sizeof(struct Operand_));
+		place->kind = VAR;
+		place->u.value = v->name;
+		if(child->next)
+			child = child->next->next; //Exp
+		// 最后会把值赋给place
+		Type t = Exp(child, place);
+		if(t && type && !isTypeEqual(type,t)) {
 			printf("Error type 5 at line %d: The type mismatched\n",child->row);
 		}
+		// 如果发现place被Exp改变了,则需要手动赋值
+		// 是否必要???
 	}
 	return v;
 }
@@ -595,7 +628,7 @@ VarType ParamDec(Node*n){
 
 //VarDec -> ID
 // 		  | VarDec LB INT RB
-VarType VarDec(Node* n,Type type,int place){ //将定义的变量插入变量表
+VarType VarDec(Node* n,Type type,int src_type){ //将定义的变量插入变量表
 	printf("VarDec\n");
 	Node* child=n->children;
 	if(!child)
@@ -607,20 +640,43 @@ VarType VarDec(Node* n,Type type,int place){ //将定义的变量插入变量表
 		v->type = type;
 		v->next=NULL;
 		v->next_field=NULL;
-		if(place == FROM_PARAM)
+		if(src_type == FROM_PARAM)
 			return v; //在函数参数列表中定义的变量，不需要插入变量表
 		if(insertVar(v) == REDEFINE_ERROR){
-			if(place == FROM_GLOBAL || place == FROM_COMPOUND)//暂时不区分全局变量和域变量
+			if(src_type == FROM_GLOBAL || src_type == FROM_COMPOUND)//暂时不区分全局变量和域变量
 				printf("Error type 3 at line %d: Redefined global variable'%s'\n",child->row,v->name);	
 			else //来自结构体
 				printf("Error type 15 at line %d: Redefined field variable '%s'\n",child->row,v->name);
 			return NULL;
 		}
+		// 
+		// if(src_type == FROM_COMPOUND && type->type == STRUCTURE) {
+		if(type->type == STRUCTURE) {
+			Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+			InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+
+			tmp_op->kind = TMP_VAR;
+			tmp_op->u.var_no = varNo++;
+			tmp_code->kind = DEC;
+			tmp_code->u.dec.op = tmp_op;
+			tmp_code->u.dec.size = getTypeSize(type);
+			insertInterCode(tmp_code);
+
+			Operand struct_op = (Operand)malloc(sizeof(struct Operand_));
+			struct_op->kind = VAR;
+			struct_op->u.value = child->value;
+
+			tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+			tmp_code->kind = RIGHTAT;
+			tmp_code->u.assign.left = struct_op;
+			tmp_code->u.assign.right = tmp_op;
+			insertInterCode(tmp_code);
+		}
 		return v;
 	}
 	/*他这种写法很怪异
 	else if(!strcmp(child->name,"VarDec")){//数组
-		VarType v=VarDec(child,type,place);//先调用，定义type，然后接下来再改。
+		VarType v=VarDec(child,type,src_type);//先调用，定义type，然后接下来再改。
 		if(v==NULL)return NULL;//重名了
 		else{
 			child=child->next->next;	//INT
@@ -647,7 +703,7 @@ VarType VarDec(Node* n,Type type,int place){ //将定义的变量插入变量表
 		NewType->type=ARRAY;
 		NewType->type_info.array.size=atoi(child->next->next->value);
 		NewType->type_info.array.element=type;
-		VarType v=VarDec(child,NewType,place);
+		VarType v=VarDec(child,NewType,src_type);
 		if(v==NULL)return NULL;
 		return v;
 	}
@@ -685,57 +741,150 @@ void StmtList(Node *n,Type return_type){
 //	   |  IF LP Exp RP Stmt	
 //	   |  IF LP Exp RP Stmt ELSE Stmt
 //	   |  WHILE LP Exp RP Stmt
-void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismatched	
+void Stmt(Node *n, Type return_type)
 {
 	printf("Stmt\n");
-	Node*child=n->children;
+	Node *child = n->children;
 	if(!child)
 		return;
 	if(!strcmp(child->name,"Exp")){
-		Exp(child);
+		Exp(child, NULL);
 		return;
 	}	
 	else if(!strcmp(child->name,"CompSt")){
-		CompSt(child,return_type);
+		CompSt(child, return_type);
 		return;
 	}
 	else if(!strcmp(child->name,"RETURN")){
-		child=child->next;
-		Type t=Exp(child);
-		if(return_type==NULL||t==NULL)return;
-		if(!isTypeEqual(return_type,t))
+		Operand return_op = (Operand)malloc(sizeof(struct Operand_));
+		return_op->kind = TMP_VAR;
+		return_op->u.var_no = varNo++;
+
+		child = child->next;
+		Type t = Exp(child, return_op);
+		if(return_type==NULL||t==NULL)
+			return;
+		if(!isTypeEqual(return_type, t))
 		{
-			printf("Error type 8 at line %d: The return type mismatched\n",child->row);
+			printf("Error type 8 at line %d: Return type mismatched\n",child->row);
+			return;
 		}
+		// RETURN的中间代码
+		InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = RETURN_KIND;
+		tmp_code->u.unary.op = return_op;
+		insertInterCode(tmp_code);
 		return;
-	}
-	else if(!strcmp(child->name,"IF")){
-		//还需改动,实现跳转功能
-		child=child->next->next;//Exp
-		Type t=Exp(child);
-		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT_TYPE)){//t==NULL的话说明在Exp函数中已经报错了
-			printf("Error at line %d: type %s is not allowed for if condition",child->row,Type2String(t));
+	} else if(!strcmp(child->name,"IF")) {
+		child = child->next->next; //Exp
+		Operand label1_op = (Operand)malloc(sizeof(struct Operand_));
+		Operand label2_op = (Operand)malloc(sizeof(struct Operand_));
+		label1_op->kind = LABEL_OP;
+		label2_op->kind = LABEL_OP;
+		label1_op->u.var_no = labelNo++;
+		label2_op->u.var_no = labelNo++;
+
+		Type t = translate_Cond(child, label1_op, label2_op);
+		// t==NULL的话说明在Exp函数中已经报错了
+		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT_TYPE)){
+			printf("Error at line %d: type %s is not allowed for if condition", child->row, Type2String(t));
 		}
-		child=child->next->next;//Stmt
-		Stmt(child,return_type);
-		child=child->next;//else或NULL
-		if(child){
-			child=child->next;//Stmt
-			Stmt(child,return_type);
+
+		// Label label1
+		InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = LABEL_OP;
+		tmp_code->u.unary.op = label1_op;
+		insertInterCode(tmp_code);
+
+		Node *Stmt1_node = child->next->next;
+		Stmt(Stmt1_node, return_type);
+
+		// 存在else部分
+		if(Stmt1_node->next) {
+			// GOTO label3
+			Operand label3_op = (Operand)malloc(sizeof(struct Operand_));
+			label3_op->kind = LABEL_OP;
+			label3_op->u.var_no = labelNo++;
+			tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+			tmp_code->kind = GOTO;
+			tmp_code->u.unary.op = label3_op;
+			insertInterCode(tmp_code);
+
+			// LABEL label2
+			tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+			tmp_code->kind = LABEL_OP;
+			tmp_code->u.unary.op = label2_op;
+			insertInterCode(tmp_code);
+
+			Node *Stmt2_node = Stmt1_node->next->next;
+			Stmt(Stmt2_node, return_type);
+
+			// LABEL label3
+			tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+			tmp_code->kind = LABEL_OP;
+			tmp_code->u.unary.op = label3_op;
+			insertInterCode(tmp_code);
+			return;
+		// 不存在else部分
+		} else {
+			// Label label2
+			tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+			tmp_code->kind = LABEL_OP;
+			tmp_code->u.unary.op = label2_op;
+			insertInterCode(tmp_code);
+			return;
 		}
 	}
 	else if(!strcmp(child->name,"WHILE")){
-		//还需改动,实现停止循环功能
-		child=child->next->next;//Exp
-		Type t=Exp(child);
-		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT_TYPE)){//t==NULL的话说明在Exp函数中已经报错了
+		Operand label1_op = (Operand)malloc(sizeof(struct Operand_));
+		Operand label2_op = (Operand)malloc(sizeof(struct Operand_));
+		Operand label3_op = (Operand)malloc(sizeof(struct Operand_));
+		label1_op->kind = LABEL_OP;
+		label2_op->kind = LABEL_OP;
+		label3_op->kind = LABEL_OP;
+		label1_op->u.var_no = labelNo++;
+		label2_op->u.var_no = labelNo++;
+		label3_op->u.var_no = labelNo++;
+
+		// LABEL label1
+		InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = LABEL_OP;
+		tmp_code->u.unary.op = label1_op;
+		insertInterCode(tmp_code);
+
+		Node *Exp_node = child->next->next;
+		Type t = translate_Cond(Exp_node, label2_op, label3_op);
+		//t==NULL的话说明在Exp函数中已经报错了
+		if(t!=NULL&&!((t->type==BASIC||t->type==CONSTANT)&&t->type_info.basic!=INT_TYPE)) {
 			printf("Error at line %d: type %s is not allowed for while condition",child->row,Type2String(t));
 		}
-		child=child->next->next;//Stmt
-		Stmt(child,return_type);
+
+		// LABEL label2
+		tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = LABEL_OP;
+		tmp_code->u.unary.op = label2_op;
+		insertInterCode(tmp_code);
+
+		Node *Stmt_node = Exp_node->next->next;
+		Stmt(Stmt_node, return_type);
+
+		// GOTO label1
+		tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = GOTO;
+		tmp_code->u.unary.op = label1_op;
+		insertInterCode(tmp_code);
+
+		// LABEL label3
+		tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = LABEL_OP;
+		tmp_code->u.unary.op = label3_op;
+		insertInterCode(tmp_code);
+
+		return;
 	}
 	else {
 		printf("CODE ERROR: in Stmt function\n");
+		return;
 	}
 }
 
@@ -759,53 +908,153 @@ void Stmt(Node *n,Type return_type)		//error type 8	return  //return type mismat
 	|	FLOAT			
 	;*/
 //返回值要说明Exp的值的类型
-Type Exp(Node *n){
+Type Exp(Node *n, Operand place){
 	printf("Exp\n");
 	Node *child=n->children;
 	if(!child)
 		return NULL;
 	if(!strcmp(child->name,"Exp")){
-		if(!strcmp(child->next->name,"LB")){//array
-			Type t1=Exp(child);
+		if(!strcmp(child->next->name,"LB")){ //array
+			Operand op1 = (Operand)malloc(sizeof(struct Operand_));
+			op1->kind = TMP_VAR;
+			op1->u.var_no = varNo++;
+			Type t1 = Exp(child, op1);
+
 			if(t1==NULL)return NULL;
 			if(t1->type!=ARRAY)
 			{
 				printf("Error type 10 at line %d: '%s' must be an array\n",child->row,child->value);
 				return NULL;
 			}
-			child=child->next->next;//第二个exp
-			Type t2=Exp(child);
-			if(t2==NULL)return NULL;  
+
+			child = child->next->next; //第二个exp
+			Operand op2 = (Operand)malloc(sizeof(struct Operand_));
+			op2->kind = TMP_VAR;
+			op2->u.var_no = varNo++;
+			Type t2 = Exp(child, op2);
+
+			if(t2==NULL)
+				return NULL;  
 			if(!((t2->type==BASIC||t2->type==CONSTANT)&&t2->type_info.basic==INT_TYPE))
 			{
 				printf("Error type 12 at line %d: Operands type mistaken\n",child->row);
 				return NULL;
 			}
+			// 表示计算出来的数组地址偏移量的操作数
+			Operand offset = (Operand)malloc(sizeof(struct Operand_));
+			offset->kind = TMP_VAR;
+			offset->u.var_no = varNo++;
+			// 表述数组单个元素大小的操作数
+			Operand size = (Operand)malloc(sizeof(struct Operand_));
+			size->kind = CONSTANT_OP;
+			Type array_type = t1->type_info.array.element;
+			size->u.value = (char*)malloc(20); // 表达数组元素大小的字符串
+			sprintf(size->u.value, "%d", getTypeSize(array_type));
+			// 计算数组元素的地址偏移量的中间代码
+			InterCode cal_offset_code = (InterCode)malloc(sizeof(struct InterCode_));
+			cal_offset_code->kind = MUL_KIND;
+			cal_offset_code->u.binop.result = offset;
+			cal_offset_code->u.binop.op1 = op2;
+			cal_offset_code->u.binop.op2 = size;
+			insertInterCode(cal_offset_code);
+
+			InterCode cal_addr_code = (InterCode)malloc(sizeof(struct InterCode_));
+			cal_addr_code->kind = ADD_KIND;
+			cal_addr_code->u.binop.op1 = op1;
+			cal_addr_code->u.binop.op2 = offset;
+
+			if(array_type->type == BASIC) {
+				Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+				tmp_op->kind = TMP_VAR;
+				tmp_op->u.var_no = varNo++;
+				place->kind = TMP_VAR_ADDRESS;
+				place->u.var = tmp_op;
+				cal_addr_code->u.binop.result = tmp_op;
+			} else {
+				cal_addr_code->u.binop.result = place;
+			}
+			insertInterCode(cal_addr_code);
+
 			return t1->type_info.array.element;
 		}
 		else if(!strcmp(child->next->name,"DOT")){//struct
-			printf("here DOT\n");
-			Type t1=Exp(child);
-			if(t1==NULL)return NULL;
-			if(t1->type!=STRUCTURE)
-			{
+			Operand op1 = (Operand)malloc(sizeof(struct Operand_));
+			op1->kind = TMP_VAR;
+			op1->u.var_no = varNo++;
+
+			Type t1 = Exp(child, op1);
+			if(t1 == NULL)
+				return NULL;
+			if(t1->type != STRUCTURE) {
 				printf("Error type 13 at line %d: Illegal use of '.'\n",child->row);
 				return NULL;
 			}
-			VarType v=t1->type_info.structure->varList;
-			child=child->next->next;
+			VarType v = t1->type_info.structure->varList;
+			child = child->next->next;
+			int offset = 0; // 结构体变量的偏移量
 			while(v!=NULL)
 			{
-				if(!strcmp(v->name,child->value))
+				if(!strcmp(v->name,child->value)) {
+					// 无偏移量,不需要计算偏移量
+					// DEBUG: 可以看41.c
+					if(offset == 0) {
+						if(op1->kind == VAR || op1->kind == VAR_ADDRESS) {
+							// 当是BASIC的类型时,可以直接取地址赋值
+							if(v->type->type == BASIC) {
+								place->kind == VAR_ADDRESS;
+								place->u.var = op1;
+							} else {
+								place->kind = VAR;
+								place->u.value = op1->u.value;
+							}
+						} else if(op1->kind == TMP_VAR || op1->kind == TMP_VAR_ADDRESS) {
+							if(v->type->type == BASIC) {
+								place->kind = TMP_VAR_ADDRESS;
+								place->u.var = op1;
+							} else {
+								place->kind = TMP_VAR;
+								place->u.var_no = op1->u.var_no;
+							}
+						}
+					// 有偏移量,需要计算
+					} else {
+						InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+						tmp_code->kind = ADD_KIND;
+
+						Operand res_op = (Operand)malloc(sizeof(struct Operand_));
+						res_op->kind = TMP_VAR;
+						res_op->u.var_no = varNo++;
+
+						Operand offset_op = (Operand)malloc(sizeof(struct Operand_));
+						offset_op->kind = CONSTANT_OP;
+						offset_op->u.value = (char*)malloc(20);
+						sprintf(offset_op->u.value, "%d", offset);
+
+						tmp_code->u.binop.op1 = op1;
+						tmp_code->u.binop.op2 = offset_op;
+						
+						// 如果是基础类型,则返回临时变量,对应待取的变量的地址
+						if(v->type->type == BASIC) {
+							place->kind = TMP_VAR_ADDRESS;
+							place->u.var = res_op;
+							tmp_code->u.binop.result = res_op;
+						// 否则,还没到达要取得的变量的地址,继续递归
+						} else {
+							tmp_code->u.binop.result = place;
+						}
+
+						insertInterCode(tmp_code);
+					}
 					return v->type;
+				}
+				offset += getTypeSize(v->type);
 				v=v->next_field;
 			}
 			printf("Error type 14 at line %d: Un-existed field '%s'\n",child->row,child->value);
 			return NULL;
 		}
 		else{//binary exp
-			printf("here\n");
-			return BinaryExp(child,child->next,child->next->next);
+			return BinaryExp(child, child->next, child->next->next);
 		}
 	}
 	else if(!strcmp(child->name,"LP")){
@@ -868,6 +1117,8 @@ Type Exp(Node *n){
 				printf("Error type 1 at line %d: Undefined variable '%s'\n",child->row,child->value);	
 				return NULL;
 			}
+			place->kind = VAR;
+			place->u.value = child->value;
 			return v->type;
 		}
 	}
@@ -888,20 +1139,49 @@ Type Exp(Node *n){
 		return NULL;
 	}
 }
-Type BinaryExp(Node* left,Node* op,Node* right){
+
+Type BinaryExp(Node* left,Node* op,Node* right, Operand place){
 	printf("BinaryExp\n");
+	// Exp -> Exp1 ASSIGNOP Exp2
 	if(!strcmp(op->name,"ASSIGNOP")){
-		Type leftType=Exp(left);
-		if(!leftType)
-			return NULL;
-		if(leftType->type!=BASIC){
+		// Operand left_op = (Operand)malloc(sizeof(struct Operand_));
+		// Operand right_op = (Operand)malloc(sizeof(struct Operand_));
+		
+		Type left_type, right_type;
+
+		
+		// tmp_op->kind = TMP_VAR;
+		// tmp_op->u.var_no = varNo++;
+
+		Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+		// 单个变量访问
+		// Exp1 -> ID 得到ID所对应的变量
+		if(!strcmp(left->children->name, "ID") && !left->children->next) {
+			left_type = Exp(left, tmp_op);
+		// 数组元素访问
+		} else if(!strcmp(left->children->name, "Exp") && left->children->next && !strcmp(left->children->next->name, "LB")) {
+			left_type = Exp(left, tmp_op);
+		// 结构体特定域访问
+		} else if(!strcmp(left->children->name, "Exp") && left->children->next && !strcmp(left->children->next->name, "DOT")) {
+			left_type = Exp(left, tmp_op);
+		} else {
 			printf("Error type 6 at line %d: The left-hand side of an assignment must be a variable\n", left->row);
+			return NULL;
 		}
-		Type rightType=Exp(right);
-		if(leftType==NULL||rightType==NULL)return NULL;
-		if(isTypeEqual(leftType,rightType))return leftType;
-		else
-		{
+
+		Operand left_op = tmp_op;
+		Operand right_op = (Operand)malloc(sizeof(struct Operand_));
+		right_op->kind = TMP_VAR;
+		right_op->u.var_no = varNo++;
+		right_type = Exp(right, right_op);
+		if(!left_type || !right_type)
+			return;
+		if(isTypeEqual(left_type, right_type)) {
+			// 此时右值的结果储存在right_op中
+			InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+
+			return left_type;
+		} else {
 			printf("Error type 5 at line %d: Type mismatched\n", left->row);
 			return NULL;
 		}
@@ -923,6 +1203,145 @@ Type BinaryExp(Node* left,Node* op,Node* right){
 		return NULL;
 	}
 }
+
+// Exp1 RELOP Exp2
+// NOT Exp1
+// Exp1 AND Exp2
+// Exp1 OR Exp2
+// other cases
+Type translate_Cond(Node *n, Operand label_true, Operand label_false) {
+	Node *child = n->children;
+	if(!child)
+		return NULL;
+	if(!strcmp(child->name, "Exp")) {
+		Node *op_node = child->next;
+		if(op_node && !strcmp(op_node->name, "RELOP")) {
+			Operand op1 = (Operand)malloc(sizeof(struct Operand_));
+			Operand op2 = (Operand)malloc(sizeof(struct Operand_));
+			op1->kind = TMP_VAR;
+			op1->u.var_no = varNo++;
+			op2->kind = TMP_VAR;
+			op2->u.var_no = varNo++;
+
+			Node *exp1_node = child;
+			Node *exp2_node = op_node->next;
+			Type t1 = Exp(exp1_node, op1);
+			Type t2 = Exp(exp2_node, op2);
+			if(!t1 || !t2)
+				return NULL;
+			
+			if((t1->type == BASIC || t1->type == CONSTANT) && (t2->type == BASIC || t2->type == CONSTANT) && t1->type_info.basic == t2->type_info.basic) {
+				// IF t1 op t2 GOTO label_true
+				InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+				tmp_code->kind = IFGOTO;
+				tmp_code->u.ifgoto.op = op_node->value;
+				tmp_code->u.ifgoto.t1 = op1;
+				tmp_code->u.ifgoto.t2 = op2;
+				tmp_code->u.ifgoto.label = label_true;
+				insertInterCode(tmp_code);
+
+				// GOTO label_false
+				tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+				tmp_code->kind = GOTO;
+				tmp_code->u.unary.op = label_false;
+				insertInterCode(tmp_code);
+
+				return t1;
+			} else {
+				printf("Error type 7 at line %d: Operand type mismatched\n",child->row);
+				return NULL;
+			}
+		} else if(op_node && !strcmp(op_node->name, "AND")) {
+			Operand label1_op = (Operand)malloc(sizeof(struct Operand_));
+			label1_op->kind = LABEL_OP;
+			label1_op->u.var_no = labelNo++;
+			// child: Exp1
+			Type t1 = translate_Cond(child, label1_op, label_false);
+
+			// LABEL label1
+			InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+			tmp_code->kind = LABEL_OP;
+			tmp_code->u.unary.op = label1_op;
+			insertInterCode(tmp_code);
+
+			// op_node->next: Exp2
+			Type t2 = translate_Cond(op_node->next, label_true, label_false);
+			if(!t1 || !t2)
+				return NULL;
+			if((t1->type == BASIC || t1->type == CONSTANT) && (t2->type == BASIC || t2->type == CONSTANT) && t1->type_info.basic == t2->type_info.basic) {
+				return t1;
+			} else {
+				printf("Error type 7 at line %d: Operand type mismatched\n",child->row);
+				return NULL;
+			}
+		} else if(op_node && !strcmp(op_node->name, "OR")) {
+			Operand label1_op = (Operand)malloc(sizeof(struct Operand_));
+			label1_op->kind = LABEL_OP;
+			label1_op->u.var_no = labelNo++;
+			// child: Exp1
+			Type t1 = translate_Cond(child, label_true, label1_op);
+
+			// LABEL label1
+			InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+			tmp_code->kind = LABEL_OP;
+			tmp_code->u.unary.op = label1_op;
+			insertInterCode(tmp_code);
+
+			// op_node->next: Exp2
+			Type t2 = translate_Cond(op_node->next, label_true, label_false);
+			if(!t1 || !t2)
+				return NULL;
+			if((t1->type == BASIC || t1->type == CONSTANT) && (t2->type == BASIC || t2->type == CONSTANT) && t1->type_info.basic == t2->type_info.basic) {
+				return t1;
+			} else {
+				printf("Error type 7 at line %d: Operand type mismatched\n",child->row);
+				return NULL;
+			}
+		}
+	} else if(!strcmp(child->name, "NOT")) {
+		child = child->next;
+		if(!child)
+			return NULL;
+		Type t = translate_Cond(child, label_false, label_true);
+		if(!t)
+			return NULL;
+		if(t->type == BASIC && t->type_info.basic == INT_TYPE)
+			return t;
+		else {
+			printf("Error type 7 at line %d: Operand type mismatched\n",child->row);
+			return NULL;
+		}
+	} else {
+		// IF t1 != #0 GOTO label_true
+		Operand op1 = (Operand)malloc(sizeof(struct Operand_));
+		Operand op2 = (Operand)malloc(sizeof(struct Operand_));
+		op1->kind = TMP_VAR;
+		op1->u.var_no = varNo++;
+		Type op1_type = Exp(n, op1);
+		op2->kind = CONSTANT_OP;
+		op2->u.value = malloc(10);
+		sprintf(op2->u.value, "%d", 0);
+
+		InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = IFGOTO;
+		tmp_code->u.ifgoto.t1 = op1;
+		tmp_code->u.ifgoto.t2 = op2;
+		tmp_code->u.ifgoto.op = (char*)malloc(10);
+		sprintf(tmp_code->u.ifgoto.op, "!=");
+		tmp_code->u.ifgoto.label = label_true;
+		insertInterCode(tmp_code);
+
+		// GOTO label_false
+		tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+		tmp_code->kind = GOTO;
+		tmp_code->u.unary.op = label_false;
+		insertInterCode(tmp_code);
+
+		return op1_type;
+	}
+}
+
+
 //Args -> Exp COMMA Args
 //		| Exp
 //返回值用于判断实际参数和形式参数是否匹配，VarType v是函数的形式参数列表
