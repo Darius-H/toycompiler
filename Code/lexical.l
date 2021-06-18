@@ -74,13 +74,15 @@ int yywrap(){
 static void comment(FILE* f)//读取注释，直到注释结束
 {
     int c;
-    while ((c = input()) != 0 && c!=EOF){//使用getchar()会一直收到-1，-1代表EOF，说明重定向没有将文件流传入stdin
+    // 使用getchar()会一直收到-1，-1代表EOF，说明重定向没有将文件流传入stdin
+    while ((c = input()) != 0 && c!=EOF) 
+    { 
         if (c == '*')
         {
             while ((c = input()) == '*');
             if (c == '/')return;//找到注释结尾
             if (c == 0)break;//字符串结尾
         }
-    }//字符串结尾
+    } //字符串结尾
     yyerror("unterminated comment");
 }

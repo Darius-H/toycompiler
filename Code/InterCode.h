@@ -18,41 +18,71 @@ extern int varNo;
 extern int labelNo;
 
 struct Operand_ {
-	enum {
-		VAR, CONSTANT_OP, VAR_ADDRESS, LABEL_OP, FUNCTION_OP,
-		TMP_VAR, TMP_VAR_ADDRESS
-	} kind;
+    enum {
+        VAR,
+        CONSTANT_OP,
+        VAR_ADDRESS,
+        LABEL_OP,
+        FUNCTION_OP,
+        TMP_VAR,
+        TMP_VAR_ADDRESS
+    } kind;
 
-	union {
-		int var_no; // TMP_VAR, LABEL_OPs, 
-		char* value; // VAR, CONSTANT, FUNCTION_OP
-		Operand var; // VAR_ADDRESS, TMP_VAR_ADDRESS 地址所对应的变量
-	} u;
-	Operand next;
+    union {
+        int var_no;   // TMP_VAR, LABEL_OPs,
+        char* value;  // VAR, CONSTANT, FUNCTION_OP
+        Operand var;  // VAR_ADDRESS, TMP_VAR_ADDRESS 地址所对应的变量
+    } u;
+    Operand next;
 };
 
 struct InterCode_ {
-	enum {
-		LABEL, FUNCTION, ASSIGN, 
-		ADD_KIND, SUB_KIND, MUL_KIND, DIV_KIND, RIGHTAT,
-		GOTO, IFGOTO, RETURN_KIND, DEC,
-		ARG, CALL, PARAM,
-		READ, WRITE
-	} kind;
+    enum {
+        LABEL,
+        FUNCTION,
+        ASSIGN,
+        ADD_KIND,
+        SUB_KIND,
+        MUL_KIND,
+        DIV_KIND,
+        RIGHTAT,
+        GOTO,
+        IFGOTO,
+        RETURN_KIND,
+        DEC,
+        ARG,
+        CALL,
+        PARAM,
+        READ,
+        WRITE
+    } kind;
 
-	union {
-		// LABEL, FUNCTION, GOTO, RETURN, ARG, PARAM, READ, WRITE
-		struct { Operand op; } unary;
-		// ASSIGN, RIGHTAT, CALL
-		struct { Operand left, right; } assign;
-		// ADD, SUB, MUL, DIV
-		struct { Operand result, op1, op2; } binop;
-		// IFGOTO
-		struct { Operand t1; char* op; Operand t2, label; } ifgoto;
-		// DEC
-		struct { Operand op; int size; } dec;
-	} u;
-	InterCode prev, next;
+    union {
+        // LABEL, FUNCTION, GOTO, RETURN, ARG, PARAM, READ, WRITE
+        struct {
+            Operand op;
+        } unary;
+        // ASSIGN, RIGHTAT, CALL
+        struct {
+            Operand left, right;
+        } assign;
+        // ADD, SUB, MUL, DIV
+        struct {
+            Operand result, op1, op2;
+        } binop;
+        // IFGOTO
+        struct {
+            Operand t1;
+            char* op;
+            Operand t2, label;
+        } ifgoto;
+        // DEC
+        struct {
+            Operand op;
+            int size;
+        } dec;
+    } u;
+    InterCode prev, next;
 };
 
 void insertInterCode(InterCode i);
