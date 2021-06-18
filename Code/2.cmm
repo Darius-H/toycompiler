@@ -1,0 +1,8 @@
+struct Vector{
+    int a,b;
+}x;
+
+int main(){
+    x.a=3;
+    write(x.a);
+}
