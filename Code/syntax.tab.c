@@ -2159,20 +2159,20 @@ int main(int argc, char** argv)
 	yylineno=1;
 	yyrestart(f);
 	yyparse();
-    printf("-----------Parse Tree-----------\n");
-	printTree(root, 0);
+    // printf("-----------Parse Tree-----------\n");
+	// printTree(root, 0);
 	if(errorFlag)
 	{
 		initHashTable();
 		Program(root);
 	}
-	printf("\n-----------Var Table----------\n");
-	printVarTable();
+	// printf("\n-----------Var Table----------\n");
+	// printVarTable();
 
-	printf("\n----------Func Table----------\n");
-	printFuncTable();
+	// printf("\n----------Func Table----------\n");
+	// printFuncTable();
 
-	printf("\n----------Inter Code----------\n");
+	// printf("\n----------Inter Code----------\n");
 	printInterCode();
 	return 0;
 }

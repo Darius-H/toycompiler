@@ -18,6 +18,7 @@ int main()
     struct Position v;
     int aaa[10];
 	s.pa = 1;
+    f(1);
     return 0;
 }
 
