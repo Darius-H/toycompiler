@@ -91,6 +91,7 @@ void initHashTable(void) {
     write->returnType->type = BASIC;
     write->returnType->type_info.basic = INT_TYPE;
     write->param->next_field = NULL;
+    write->param->next = NULL;
     write->next = NULL;
     insertFunc(write);
 }
@@ -101,7 +102,6 @@ int insertVar(VarType vl) {
     if (vl->name == NULL) return -1;
 
     unsigned int index = hash_pjw(vl->name);
-    // printf("inserVar:%s %d\n",vl->name,index);
     if (varTable[index] == NULL) {
         varTable[index] = vl;
     } else {
@@ -256,7 +256,6 @@ void Program(Node *n) { ExtDefList(n->children); }
 
 // ExtDefList -> ExtDef ExtDefList | ε
 void ExtDefList(Node *n) {
-    printf("ExtDefList\n");
     if (n) {
         Node *child = n->children;
         if (child) {
@@ -269,7 +268,6 @@ void ExtDefList(Node *n) {
 // ExtDef -> Specifier ExtDecList SEMI | Specifier SEMI
 // 		   | Specifier FunDec CompSt | Specifier FunDec SEMI
 void ExtDef(Node *n) {
-    printf("ExtDef\n");
     Node *child = n->children;  // child: Specifier
     if (!child) return;
     Type t = Specifier(child);
@@ -391,7 +389,6 @@ void ExtDecList(Node *n, Type t) {
 
 // Specifier -> TYPE | StructSpecifier
 Type Specifier(Node *n) {
-    printf("Specifier\n");
     Node *child = n->children;
     if (!child) return NULL;
     if (!strcmp(child->name, "TYPE")) {
@@ -415,12 +412,9 @@ Type Specifier(Node *n) {
 // 					| STRUCT Tag
 // OptTag和Tag不需要定义函数，直接在StructSpecifier中就解决了
 Type StructSpecifier(Node *n) {
-    printf("StructSpecifier\n");
     Node *child = n->children;
     if (!strcmp(child->name, "STRUCT")) {
-        printf("STRUCT\n");
         if (!strcmp(child->next->name, "OptTag")) {  //首次定义结构体变量
-            printf("OptTag\n");
             Type t = (Type)malloc(sizeof(struct Type_));
             t->type = STRUCTURE;
             t->type_info.structure =
@@ -446,7 +440,6 @@ Type StructSpecifier(Node *n) {
                     t->type_info.structure->varList = v;
                     // 无名结构体,无需插入至哈希表
                     if (t->type_info.structure->name == NULL) {
-                        printf("why\n");
                         return t;
                     }
                     // 将定义好的结构体本身插入哈希表
@@ -470,7 +463,6 @@ Type StructSpecifier(Node *n) {
             }
             // 根据已有的结构定义新的结构变量
         } else if (!strcmp(child->next->name, "Tag")) {
-            printf("Tag\n");
             if (!child->next->children) return NULL;
             // 查找变量符号表中是否已经定义了该结构
             VarType tmp = findSymbol(child->next->children->value);
@@ -514,11 +506,9 @@ VarType DefList(
 
 // Def -> Specifier DecList SEMI
 VarType Def(Node *n, int src_type) {
-    // printf("Def\n");
     Node *child = n->children;
     VarType v;
     Type type = Specifier(child);
-    // printf("%d\n",type->type);
     child = child->next;
     v = DecList(child, type, src_type);
     return v;
@@ -592,7 +582,19 @@ VarType Dec(Node *n, Type type, int src_type) {
                    child->row);
         }
         // 如果发现place被Exp改变了,则需要手动赋值
-        // 是否必要???
+        // 比如 i = 1, 进入Exp后place会变成CONSTANT_OP类型
+        if(place->kind != VAR || strcmp(place->u.value, v->name)) {
+            Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+            tmp_op->kind = VAR;
+            tmp_op->u.value = v->name;
+
+            InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+            tmp_code->kind = ASSIGN;
+            tmp_code->u.assign.left = tmp_op;
+            tmp_code->u.assign.right = place;
+            insertInterCode(tmp_code);
+        }
+        
     }
     return v;
 }
@@ -601,7 +603,6 @@ VarType Dec(Node *n, Type type, int src_type) {
 //		|  ID LP RP
 //		|  error RP (语法错误，不在此处处理)
 FuncType FunDec(Node *n, Type return_type) {
-    // printf("FunDec\n");
     Node *child = n->children;
     FuncType func = (FuncType)malloc(sizeof(struct FuncType_));
     func->isDefined = false;
@@ -646,7 +647,6 @@ VarType ParamDec(Node *n) {
 // VarDec -> ID
 // 		  | VarDec LB INT RB
 VarType VarDec(Node *n, Type type, int src_type) {  //将定义的变量插入变量表
-    printf("VarDec\n");
     Node *child = n->children;
     if (!child) return NULL;
     if (!strcmp(child->name, "ID")) {
@@ -711,7 +711,6 @@ VarType VarDec(Node *n, Type type, int src_type) {  //将定义的变量插入�
 // CompSt -> LC DefList StmtList RC
 // 这个CoumpSt仅用于函数体，不用于结构体，故有返回值
 void CompSt(Node *n, Type return_type) {
-    printf("CompSt\n");
     Node *child = n->children->next;  // DefList
     DefList(child, FROM_COMPOUND);
     child = child->next;  // StmtList
@@ -721,7 +720,6 @@ void CompSt(Node *n, Type return_type) {
 // StmtList -> Stmt StmtList
 //			| e
 void StmtList(Node *n, Type return_type) {
-    printf("StmtList\n");
     Node *child = n->children;
     if (child) {
         Stmt(child, return_type);
@@ -738,7 +736,6 @@ void StmtList(Node *n, Type return_type) {
 //	   |  IF LP Exp RP Stmt ELSE Stmt
 //	   |  WHILE LP Exp RP Stmt
 void Stmt(Node *n, Type return_type) {
-    printf("Stmt\n");
     Node *child = n->children;
     if (!child) return;
     if (!strcmp(child->name, "Exp")) {
@@ -777,9 +774,8 @@ void Stmt(Node *n, Type return_type) {
 
         Type t = translate_Cond(child, label1_op, label2_op);
         // t==NULL的话说明在Exp函数中已经报错了
-        if (t != NULL && !((t->type == BASIC || t->type == CONSTANT) &&
-                           t->type_info.basic != INT_TYPE)) {
-            printf("Error at line %d: type %s is not allowed for if condition",
+        if (t != NULL && !((t->type == BASIC || t->type == CONSTANT) && t->type_info.basic == INT_TYPE)) {
+            printf("Error at line %d: type %s is not allowed for if condition\n",
                    child->row, Type2String(t));
         }
 
@@ -847,10 +843,9 @@ void Stmt(Node *n, Type return_type) {
         Node *Exp_node = child->next->next;
         Type t = translate_Cond(Exp_node, label2_op, label3_op);
         // t==NULL的话说明在Exp函数中已经报错了
-        if (t != NULL && !((t->type == BASIC || t->type == CONSTANT) &&
-                           t->type_info.basic != INT_TYPE)) {
+        if (t != NULL && !((t->type == BASIC || t->type == CONSTANT) && t->type_info.basic == INT_TYPE)) {
             printf(
-                "Error at line %d: type %s is not allowed for while condition",
+                "Error at line %d: type %s is not allowed for while condition\n",
                 child->row, Type2String(t));
         }
 
@@ -903,7 +898,6 @@ void Stmt(Node *n, Type return_type) {
     ;*/
 //返回值要说明Exp的值的类型
 Type Exp(Node *n, Operand place) {
-    printf("Exp\n");
     Node *child = n->children;
     if (!child) return NULL;
     if (!strcmp(child->name, "Exp")) {
@@ -1161,7 +1155,8 @@ Type Exp(Node *n, Operand place) {
                        child->row, child->value);
                 return NULL;
             }
-            if (f == NULL || !f->isDefined) {
+			if (f == NULL) {
+            // if (f == NULL || !f->isDefined) {
                 printf("Error type 2 at line %d: Undefined function '%s'\n",
                        child->row, child->value);
                 return NULL;
@@ -1192,6 +1187,11 @@ Type Exp(Node *n, Operand place) {
                     InterCode tmp_code =
                         (InterCode)malloc(sizeof(struct InterCode_));
                     tmp_code->kind = CALL;
+					if(!place) {
+							place = (Operand)malloc(sizeof(struct Operand_));
+							place->kind = TMP_VAR;
+							place->u.var_no = varNo;
+					}
                     tmp_code->u.assign.left = place;
                     tmp_code->u.assign.right = tmp_op;
                     insertInterCode(tmp_code);
@@ -1200,6 +1200,7 @@ Type Exp(Node *n, Operand place) {
             // Exp -> ID LP Args RP
             else {
                 Operand arg_list = (Operand)malloc(sizeof(struct Operand_));
+				arg_list->next = NULL;
                 if (!Args(child, param, arg_list)) {
                     printf("Error type 9 at line : The method '%s(", f->name);
                     printParam(param);
@@ -1233,6 +1234,11 @@ Type Exp(Node *n, Operand place) {
 
                         tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
                         tmp_code->kind = CALL;
+						if(!place) {
+							place = (Operand)malloc(sizeof(struct Operand_));
+							place->kind = TMP_VAR;
+							place->u.var_no = varNo;
+						}
                         tmp_code->u.assign.left = place;
                         tmp_code->u.assign.right = tmp_op;
                         insertInterCode(tmp_code);
@@ -1279,7 +1285,6 @@ Type Exp(Node *n, Operand place) {
 
 // father -> left op right
 Type BinaryExp(Node *left, Node *op, Node *right, Operand place, Node *father) {
-    printf("BinaryExp\n");
     // Exp -> Exp1 ASSIGNOP Exp2
     if (!strcmp(op->name, "ASSIGNOP")) {
         Type left_type, right_type;

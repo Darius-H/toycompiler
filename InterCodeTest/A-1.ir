@@ -1,0 +1,32 @@
+FUNCTION main :
+i := #1
+j := #11
+k := #39
+result := #0
+t5 := #0 - i
+t3 := t5 + k
+t8 := #17 * i
+t4 := #0 - t8
+t2 := t3 + t4
+i := t2
+WRITE i
+t14 := #11 * j
+t21 := i * i
+t18 := k + t21
+t15 := t18 * i
+t13 := t14 - t15
+j := t13
+WRITE j
+t30 := i / j
+t27 := i * t30
+t26 := t27 + k
+k := t26
+WRITE k
+t38 := #4 * i
+t39 := j / #17
+t36 := t38 + t39
+t37 := i * k
+t35 := t36 + t37
+result := t35
+WRITE result
+RETURN #0
