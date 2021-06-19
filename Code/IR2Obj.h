@@ -6,7 +6,7 @@
 #define FRAME_OFFSET 8	//因为函数至少把ra和fp写到内存中，故要讲FrameOffset初始化为8
 typedef struct reg_struct
 {
-	char name[2];//寄存器名称
+	char name[3];//寄存器名称
 	char *vname;//绑定的变量名
 	int LRU_count;//当寄存器满的时候，溢出LRU_count值最大的寄存器
 }reg;
@@ -26,7 +26,7 @@ reg regs[REG_NUM];
 int FrameOffset;//当前帧偏移
 vnode *FuncVarList;//函数的变量链表
 vnode *VarListTail;//链表尾节点
-int ArgCount;//参数计数
+int ArgCount;//实参计数
 
 void Init();//寄存器、变量表、帧偏移、参数计数初始化
 void regNamer(char name[],char* str);//给寄存器赋名称

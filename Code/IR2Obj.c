@@ -2,36 +2,27 @@
 
 void Init(){//初始化寄存器
     int i;
-    char tmp[3];
     for(i=0;i<REG_NUM;i++){
         regs[i].vname=NULL;
         regs[i].LRU_count=0;
     }
     for(i=0;i<10;i++){//t系列寄存器赋名称        
-        sprintf(tmp,"t%d",i);
-        regNamer(regs[i].name,tmp);
+        sprintf(regs[i].name,"t%d",i);
     }
     for(i=10;i<18;i++){//s系列寄存器赋名称        
-        sprintf(tmp,"s%d",i-10);
-        regNamer(regs[i].name,tmp);
+        sprintf(regs[i].name,"s%d",i-10);
     }
-    regNamer(regs[18].name,"fp");
-    regNamer(regs[19].name,"sp");
-    regNamer(regs[20].name,"ra");
-    regNamer(regs[21].name,"v0");
+    strcpy(regs[18].name,"fp");
+    strcpy(regs[19].name,"sp");
+    strcpy(regs[20].name,"ra");
+    strcpy(regs[21].name,"v0");
     for(i=22;i<26;i++){//a系列寄存器
-        sprintf(tmp,"a%d",i-22);
-        regNamer(regs[i].name,tmp);
+        sprintf(regs[i].name,"a%d",i-22);
     }
     FuncVarList=NULL;
     VarListTail=NULL;
     FrameOffset=0;
     ArgCount=0;
-}
-
-void regNamer(char name[],char* str){
-    name[0]=str[0];
-    name[1]=str[1];
 }
 
 void DelVarList(){//删除整个变量链表
@@ -149,10 +140,12 @@ int GetEmptyReg(FILE*file){
 	regs[max_index].LRU_count=0;
 	return max_index;
 }
+
 void PrintReg(int index,FILE*file){//打印寄存器名
     fputs("$",file);
 	fputs(regs[index].name,file);
 }
+
 void printAllCode(char*fname){//向fname中打印所有目标代码
     FILE *file=fopen(fname,"w");
 	if(file==NULL) 
@@ -213,6 +206,7 @@ void printAllCode(char*fname){//向fname中打印所有目标代码
 		c=c->next;
 	}
 }
+
 void printObjCode(InterCode ic,FILE* file){//将一份中间代码转成目标代码写到file中
     switch (ic->kind){
         case LABEL:
@@ -245,20 +239,25 @@ void printObjCode(InterCode ic,FILE* file){//将一份中间代码转成目标�
         case DEC:
             break;
         case ARG:
+            TransPushArg(ic,file);
             break;
         case CALL: 
+            TransCall(ic,file);
             break;
         case PARAM:
             break;
-        case READ:
+        case READ://因为中间代码把read和Write函数特殊化了，所以需要为这两个函数单独写处理方式，而不用CALL
+            TransRead(ic,file);
             break;
         case WRITE:
+            TransWrite(ic,file);
             break;
         default:
             printf("[internal Error]: Unknown InterCode in IR2Obj\n");
             break;
     }
 }
+
 void StoreVarList(FILE* file){
     vnode* cur=FuncVarList;		
     while(cur!=NULL)//把当前所有变量保存到内存中
@@ -310,23 +309,28 @@ void TransAssign(InterCode ic,FILE* file){
         switch (right->kind)
         {
             case CONSTANT_OP://常数用li指令
+                int right_index=allocReg(left,file);
                 fputs("li ",file);
-                PrintReg(allocReg(left,file),file);
+                PrintReg(right_index,file);
                 fputs(" ,",file);
-                fputs(right->u.value,file);
+                fputs(right->u.value,file);//常数值
                 fputs("\n",file);
                 break;
             case VAR:case TMP_VAR://左右都是变量都要分配寄存器，用move指令
+                int left_index=allocReg(left,file);
+                int right_index=allocReg(right,file);
                 fputs("move ",file);
-                PrintReg(allocReg(left,file),file);
+                PrintReg(left_index,file);
                 fputs(" ,",file);
-                PrintReg(allocReg(right,file),file);
+                PrintReg(right_index,file);
                 break;
             case TMP_VAR_ADDRESS:case VAR_ADDRESS://x := *y -> lw reg(x),0(reg(y))
+                int left_index=allocReg(left,file);
+                int right_index=allocReg(right->u.var,file);
                 fputs("lw ",file);
-                PrintReg(allocReg(left,file),file);
+                PrintReg(left_index,file);
                 fputs(",0(",file);
-                PrintReg(allocReg(right->u.var,file),file);
+                PrintReg(right_index,file);
                 fputs(")",file);
                 break;
             default:
@@ -339,18 +343,22 @@ void TransAssign(InterCode ic,FILE* file){
         {
             case CONSTANT_OP:   //*x := #k -> sw (tmpreg for #k),0(reg(x))
                 Operand tmpreg=Const2Tmpvar(right,file);
+                int left_index=allocReg(tmpreg,file);
+                int right_index=allocReg(left->u.var,file);
                 fputs("sw ",file);
-                PrintReg(allocReg(tmpreg,file),file);
+                PrintReg(left_index,file);
                 fputs(",0(",file);
-                PrintReg(allocReg(left->u.var,file),file);
+                PrintReg(right_index,file);
                 fputs(")",file);
                 break;
             case TMP_VAR:
             case VAR:   //*x := y -> sw reg(y),0(reg(x))
+                int left_index=allocReg(right,file);
+                int right_index=allocReg(left->u.var,file);
                 fputs("sw ",file);
-                PrintReg(allocReg(right,file),file);
+                PrintReg(left_index,file);
                 fputs(",0(",file);
-                PrintReg(allocReg(left->u.var,file),file);
+                PrintReg(right_index,file);
                 fputs(")",file);
                 break;
             default:
@@ -374,38 +382,49 @@ void TransBinaryAssign(InterCode ic,FILE* file){
             else if(ic->kind==SUB_KIND)fputs("sub ",file);
             else if(ic->kind==MUL_KIND)fputs("mul ",file);
             else if(ic->kind==DIV_KIND)fputs("div ",file);
-            fputs(allocReg(result,file),file);
+            int result_index=allocReg(result,file);
+            int op1_index=allocReg(op1,file);
+            int op2_index=allocReg(op2,file);
+            PrintReg(result_index,file);
             fputs(", ",file);
-            fputs(allocReg(op1,file),file);
+            PrintReg(op1_index,file);
             fputs(", ",file);
-            fputs(allocReg(op2,file),file);
+            PrintReg(op2_index,file);
         }
         else if((op1->kind==TMP_VAR||op1->kind==VAR)&&op2->kind==CONSTANT_OP){//可以用addi
             if(ic->kind==ADD_KIND||ic->kind==SUB_KIND){
+                int result_index=allocReg(result,file);
+                int op1_index=allocReg(op1,file);
                 fputs("addi ",file);
-                fputs(allocReg(result,file),file);
+                PrintReg(result_index,file);
                 fputs(", ",file);
-                fputs(allocReg(op1,file),file);
+                PinrtReg(op1_index,file);
                 fputs(", ",file);
                 if(ic->kind==SUB_KIND)fputs("-",file);//减法取负数
                 fputs(op2->u.value,file);
             }
             else if(ic->kind==MUL_KIND||ic->kind==DIV_KIND){//需要把常数转寄存器
+                int result_index=allocReg(result,file);
+                int op1_index=allocReg(op1,file);
+                Operand tmp_op2=Const2Tmpvar(op2,file);//常数转寄存器
+                int op2_index=allocReg(tmp_op2,file);
                 if(ic->kind==MUL_KIND)fputs("mul ",file);
                 else if(ic->kind==DIV_KIND)fputs("div ",file);
-                fputs(allocReg(result,file),file);
+                PrintReg(result_index,file);
                 fputs(", ",file);
-                fputs(allocReg(op1,file),file);
+                PrintReg(op1_index,file);
                 fputs(", ",file);
-                fputs(allocReg(Const2Tmpvar(op2,file),file),file);//常数转寄存器
+                PrintReg(op2_index,file);
             }
         }
         else if((op2->kind==TMP_VAR||op2->kind==VAR)&&op1->kind==CONSTANT_OP){
             if(ic->kind==ADD_KIND){
+                int result_index=allocReg(result,file);
+                int op1_index=allocReg(op2,file);
                 fputs("addi ",file);
-                fputs(allocReg(result,file),file);
+                PrintReg(result_index,file);
                 fputs(", ",file);
-                fputs(allocReg(op2,file),file);
+                PrintReg(op1_index,file);
                 fputs(", ",file);
                 fputs(op1->u.value,file);
             }
@@ -413,11 +432,15 @@ void TransBinaryAssign(InterCode ic,FILE* file){
                 if(ic->kind==SUB_KIND)fputs("sub ",file);
                 else if(ic->kind==MUL_KIND)fputs("mul ",file);
                 else if(ic->kind==DIV_KIND)fputs("div ",file);
-                fputs(allocReg(result,file),file);
+                int result_index=allocReg(result,file);
+                Operand tmp_op1=Const2Tmpvar(op1,file);
+                int op1_index=allocReg(tmp_op1,file);
+                int op2_index=allocReg(op2,file);
+                PinrtReg(result_index,file);
                 fputs(", ",file);
-                fputs(allocReg(Const2Tmpvar(op1,file),file),file);
+                PinrtReg(op1_index,file);
                 fputs(", ",file);
-                fputs(allocReg(op2,file),file);//常数转寄存器
+                PinrtReg(op2_index,file);//常数转寄存器
             }
         }
         else if((op1->kind==VAR_ADDRESS||op1->kind==TMP_VAR_ADDRESS)&&(op2->kind==VAR||op2->kind==TMP_VAR)){// result=*op1 + op2
@@ -473,12 +496,85 @@ void TransBinaryAssign(InterCode ic,FILE* file){
     }
 }
 
-/*这个函数还没写完，没搞明白*/
+void TransCall(InterCode ic,FILE* file){
+    //顺序需要再检查对比一下
+    StoreVarList(file);
+    InterCode cur_ic=ic;
+    int i,tmp_index;
+    //把实参添加到变量列表，放入a系列寄存器或或存到内存
+    for(i=0;i<ArgCount&&i<4;i++){//尽量把参数存在a系列寄存器中
+        cur_ic=ic->prev;
+        if(cur_ic->kind!=ARG)continue;
+        if(cur_ic->u.unary.op!=VAR&&cur_ic->u.unary.op->kind!=TMP_VAR){
+            printf("[Internal ERROR]: all args should be variables");
+        }
+        else tmp_index=allocReg(cur_ic->u.unary.op,file);
+        char tmp[2];
+        sprintf(tmp,"%d",i);//存入对应a系列寄存器
+        fputs("move $a",file);
+        fputs(tmp,file);
+        fputs(", ",file);
+        PrintReg(tmp_index,file);
+        fputs("\n",file);
+    }
+    if(ArgCount-4>0){//若a系列寄存器不够存,超出部分放入内存
+        char tmp[32];
+        fputs("subu $sp, $sp, ",file);
+        sprintf(tmp,"%d",(ArgCount-4)*4);
+        fputs(tmp,file);
+		fputs("\n",file);
+        ArgCount=ArgCount-4;
+        i=0;
+        while(ArgCount>0){
+            cur_ic=cur_ic->prev;
+            sprintf(tmp,"%d",i*4);
+            if(cur_ic->u.unary.op!=VAR&&cur_ic->u.unary.op->kind!=TMP_VAR){
+                printf("[Internal ERROR]: all args should be variables");
+            }
+            else tmp_index=allocReg(cur_ic->u.unary.op,file);
+            fputs("sw ",file);
+            PrintReg(tmp_index,file);
+            fputs(", ",file);
+            fputs(tmp,file);
+            fputs("($sp)\n",file);
+            i++;
+            ArgCount--;
+        }
+        //释放刚才传实参时allocreg占用的寄存器，因为已经存入内存了
+        vnode* cur=FuncVarList;
+        while(cur!=NULL){
+            if(cur->reg>=0){
+                regs[cur->reg].vname=NULL;
+                regs[cur->reg].LRU_count=0;
+                cur->reg=-1;
+            }
+            cur=cur->next;
+        }
+        fputs("jal ",file);
+        printOperand(ic->u.assign.right,file);
+        fputs("\n",file);
+        fputs("addi $sp, $sp, ",file);//加回因为存储超过四个的实参所减少的sp
+        sprintf(tmp,"%d",i*4);
+        fputs(tmp,file);
+        fputs("\n",file);
+        if(ic->u.assign.left!=NULL)
+        {
+            tmp_index=allocReg(ic->u.assign.left,file);
+            fputs("move ",file);
+            PrintReg(tmp_index,file);
+            fputs(", $v0",file);
+        }
+    } 
+}
+
+
 void TransFunc(InterCode ic,FILE* file){
     printOperand(ic->u.unary.op,file);//打印函数标签
     fputs(":\n",file);
-    DelVarList();	//因为在CALL_K处已经把所有寄存器写入内存了，所以直接删除上一函数的调用列表
-	resetST();		//重置t系列寄存器和s系列寄存器。
+    if(strcmp(ic->u.unary.op->u.value,"main\t")){//如果不是main函数(main函数不可删除变量列表，因为要保存全局变量)
+        DelVarList();	//因为在CALL_K处已经把所有寄存器写入内存了，所以直接删除上一函数的调用列表
+	    resetST();		//重置t系列寄存器和s系列寄存器。
+    }
     //存放fp和ra寄存器
     FrameOffset=FRAME_OFFSET;
     fputs("subu $sp, $sp, 4\n",file); 
@@ -486,17 +582,39 @@ void TransFunc(InterCode ic,FILE* file){
     fputs("subu $sp, $sp, 4\n",file);
     fputs("sw $fp, 0($sp)\n",file);
     fputs("addi $fp, $sp, 8\n",file);
-    int memSize;
+    InterCode cur_ic=ic->next;//处理param语句
+    if(cur_ic==NULL)return;
+    int i=0,tmp_index;
     char tmp[32];
-    memSize=countVar(ic);			//预分配内存空间
-    fputs("subu $sp,$sp,",file);
-    sprintf(tmp,"%d",memSize*4);
-    fputs(tmp,file);
-    fputs("\n",file);
+    //param写在这里是因为对于不同数量的参数要采取不同的策略，参数小于4时从a系列寄存器中读取
+    //参数大于4时要从内存中读取。若写在case PARAM:中，处理要更复杂
+    while(cur_ic->kind==PARAM&&i<4){//从A系列寄存器中取参数
+        tmp_index=allocReg(cur_ic->u.unary.op,file);
+        fputs("move ",file);
+        PrintReg(tmp_index,file);
+        fputs(", $a",file);
+        sprintf(tmp,"%d",i);
+        fputs(tmp,file);
+        fputs("\n",file);
+        i++;
+        cur_ic=cur_ic->next;
+    }
+    i=0;
+    while(cur_ic->kind==PARAM){//从内存中读参数
+        tmp_index=allocReg(cur_ic->u.unary.op,file);
+        fputs("lw ",file);
+        PrintReg(tmp_index,file);
+        fputs(", ",file);
+        sprintf(tmp,"%d",i*4);
+        fputs(tmp,file);
+        fputs("($fp)\n",file);
+        i++;
+        cur_ic=cur_ic->next;
+    }
 }
 
 /*Dec语句后一定是x := &y*/
-void TransRightAt(InterCode ic,FILE* file){//x := &y -> 
+void TransRightAt(InterCode ic,FILE* file){//Dec y k; x := &y; -> subu $sp,$sp,k; move x,$sp; 此时x存放了分配的内存空间的首部的地址
     char tmp[32];
     InterCode icpre=ic->prev;
     if(icpre->kind!=DEC)
@@ -506,8 +624,9 @@ void TransRightAt(InterCode ic,FILE* file){//x := &y ->
     fputs(tmp,file);
     fputs("\n",file);
     FrameOffset+=icpre->u.dec.size;
+    int left_index=allocReg(ic->u.assign.left,file);
     fputs("move ",file);
-    PrintReg(allocReg(ic->u.assign.left,file),file);
+    PrintReg(left_index,file);
     fputs(", $sp",file);
 }
 
@@ -526,6 +645,8 @@ void TransIFGOTO(InterCode ic,FILE* file){//IF x relop y GOTO z -> bxx reg(x), r
     //比较需要是寄存器比较，立即数不可比较
     if(t1->kind==CONSTANT_OP)t1=Const2Tmpvar(t1,file);
     if(t2->kind==CONSTANT_OP)t2=Const2Tmpvar(t2,file);
+    int t1_index=allocReg(t1,file);//写在这里，别破坏了bxx指令
+    int t2_index=allocReg(t2,file);
     char* relop=ic->u.ifgoto.op;
     if(!strcmp(relop,"=="))
         fputs("beq ",file);
@@ -539,9 +660,9 @@ void TransIFGOTO(InterCode ic,FILE* file){//IF x relop y GOTO z -> bxx reg(x), r
         fputs("bge ",file);
     else if(!strcmp(relop,"<="))
         fputs("ble ",file);
-    PrintReg(allocReg(t1,file),file);
+    PrintReg(t1_index,file);
     fputs(", ",file);
-    PrintReg(allocReg(t2,file),file);
+    PrintReg(t2_index,file);
     fputs(", ",file);
 	printOperand(label,file);
 }
@@ -561,6 +682,38 @@ void TransReturn(InterCode ic,FILE* file){//RETURN x -> move $v0, reg(x); jr $ra
     PrintReg(index,file);
     fputs("\n",file);
     fputs("jr $ra",file);//跳回调用点
+}
+
+void TransPushArg(InterCode ic,FILE* file){
+    ArgCount++;
+    if(ic->u.unary.op->kind==VAR||ic->u.unary.op->kind==TMP_VAR){
+        allocReg(ic->u.unary.op,file);
+    }
+    else{//常数和地址处理方式相同
+        ic->u.unary.op=Addr2Tmpvar(ic->u.unary.op,file);
+    }     
+}
+
+void TransRead(InterCode ic,FILE* file){
+    fputs("jal read\n",file);
+    int index=allocReg(ic->u.unary.op,file);
+    fputs("move ",file);
+    PinrtReg(index,file);
+    fputs(", $v0",file);
+}
+
+void TransWrite(InterCode ic,FILE* file){
+    int write_arg;
+    if(ic->u.unary.op->kind==VAR||ic->u.unary.op->kind==TMP_VAR){
+        write_arg=allocReg(ic->u.unary.op,file);
+    }
+    else{//常数和地址处理方式相同
+        write_arg=allocReg(Addr2Tmpvar(ic->u.unary.op,file),file);
+    }
+    fputs("move ",file);
+    fputs("$a0, ",file);
+    PrintReg(write_arg,file);
+    fputs("\njal write",file);
 }
 
 //有些指令不能直接用立即数计算，所以需要先把立即数加载进寄存器.返回值为新分配的寄存器的操作数
