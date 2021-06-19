@@ -172,3 +172,4 @@ int yyerror(char* msg)
 	printf("Error type B at line %d:%s: unexpected character near '%s'\n", yylineno, msg,yylval.node->value);
 	return 0;
 }
+

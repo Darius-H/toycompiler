@@ -906,6 +906,7 @@ Type Exp(Node *n, Operand place) {
             Operand op1 = (Operand)malloc(sizeof(struct Operand_));
             op1->kind = TMP_VAR;
             op1->u.var_no = varNo++;
+
             Type t1 = Exp(child, op1);
 
             if (t1 == NULL) return NULL;
@@ -928,44 +929,80 @@ Type Exp(Node *n, Operand place) {
                        child->row);
                 return NULL;
             }
-            // 表示计算出来的数组地址偏移量的操作数
-            Operand offset = (Operand)malloc(sizeof(struct Operand_));
-            offset->kind = TMP_VAR;
-            offset->u.var_no = varNo++;
-            // 表述数组单个元素大小的操作数
-            Operand size = (Operand)malloc(sizeof(struct Operand_));
-            size->kind = CONSTANT_OP;
-            Type array_type = t1->type_info.array.element;
-            size->u.value = (char *)malloc(20);  // 表达数组元素大小的字符串
-            sprintf(size->u.value, "%d", getTypeSize(array_type));
-            // 计算数组元素的地址偏移量的中间代码
-            InterCode cal_offset_code =
-                (InterCode)malloc(sizeof(struct InterCode_));
-            cal_offset_code->kind = MUL_KIND;
-            cal_offset_code->u.binop.result = offset;
-            cal_offset_code->u.binop.op1 = op2;
-            cal_offset_code->u.binop.op2 = size;
-            insertInterCode(cal_offset_code);
+            
+            int array_size = getArraySize(t1);
+            // #array_size
+            Operand size_op = (Operand)malloc(sizeof(struct Operand_));
+            size_op->kind = CONSTANT_OP;
+            size_op->u.value = (char*)malloc(20);
+            sprintf(size_op->u.value, "%d", array_size);
+            // tmp
+            Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+            tmp_op->kind = TMP_VAR;
+            tmp_op->u.var_no = varNo++;
+            // tmp := #array_size * op2
+            InterCode tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+            tmp_code->kind = MUL_KIND;
+            tmp_code->u.binop.result = tmp_op;
+            tmp_code->u.binop.op1 = size_op;
+            tmp_code->u.binop.op2 = op2;
+            insertInterCode(tmp_code);
 
-            InterCode cal_addr_code =
-                (InterCode)malloc(sizeof(struct InterCode_));
-            cal_addr_code->kind = ADD_KIND;
-            cal_addr_code->u.binop.op1 = op1;
-            cal_addr_code->u.binop.op2 = offset;
+            tmp_code = (InterCode)malloc(sizeof(struct InterCode_));
+            tmp_code->kind = ADD_KIND;
+            tmp_code->u.binop.op1 = op1;
+            tmp_code->u.binop.op2 = tmp_op;
 
-            if (array_type->type == BASIC) {
-                Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
-                tmp_op->kind = TMP_VAR;
-                tmp_op->u.var_no = varNo++;
-                place->kind = TMP_VAR_ADDRESS;
-                place->u.var = tmp_op;
-                cal_addr_code->u.binop.result = tmp_op;
-            } else {
-                cal_addr_code->u.binop.result = place;
-            }
-            insertInterCode(cal_addr_code);
+            Operand res_op = (Operand)malloc(sizeof(struct Operand_));
+            res_op->kind = TMP_VAR;
+            res_op->u.var_no = varNo++;
+            place->kind = TMP_VAR_ADDRESS;
+            place->u.var = res_op;
+            tmp_code->u.binop.result = res_op;
+
+            insertInterCode(tmp_code);
 
             return t1->type_info.array.element;
+
+
+            // // 表示计算出来的数组地址偏移量的操作数
+            // Operand offset = (Operand)malloc(sizeof(struct Operand_));
+            // offset->kind = TMP_VAR;
+            // offset->u.var_no = varNo++;
+            // // 表述数组单个元素大小的操作数
+            // Operand size = (Operand)malloc(sizeof(struct Operand_));
+            // size->kind = CONSTANT_OP;
+            // Type array_type = t1->type_info.array.element;
+            // size->u.value = (char *)malloc(20);  // 表达数组元素大小的字符串
+            // sprintf(size->u.value, "%d", getTypeSize(array_type));
+            // // 计算数组元素的地址偏移量的中间代码
+            // InterCode cal_offset_code =
+            //     (InterCode)malloc(sizeof(struct InterCode_));
+            // cal_offset_code->kind = MUL_KIND;
+            // cal_offset_code->u.binop.result = offset;
+            // cal_offset_code->u.binop.op1 = op2;
+            // cal_offset_code->u.binop.op2 = size;
+            // insertInterCode(cal_offset_code);
+
+            // InterCode cal_addr_code =
+            //     (InterCode)malloc(sizeof(struct InterCode_));
+            // cal_addr_code->kind = ADD_KIND;
+            // cal_addr_code->u.binop.op1 = op1;
+            // cal_addr_code->u.binop.op2 = offset;
+
+            // if (array_type->type == BASIC) {
+            //     Operand tmp_op = (Operand)malloc(sizeof(struct Operand_));
+            //     tmp_op->kind = TMP_VAR;
+            //     tmp_op->u.var_no = varNo++;
+            //     place->kind = TMP_VAR_ADDRESS;
+            //     place->u.var = tmp_op;
+            //     cal_addr_code->u.binop.result = tmp_op;
+            // } else {
+            //     cal_addr_code->u.binop.result = place;
+            // }
+            // insertInterCode(cal_addr_code);
+
+            // return t1->type_info.array.element;
         }
         // struct
         else if (!strcmp(child->next->name, "DOT")) {
@@ -1255,8 +1292,10 @@ Type Exp(Node *n, Operand place) {
                        child->row, child->value);
                 return NULL;
             }
-            place->kind = VAR;
-            place->u.value = child->value;
+            if(place) {
+                place->kind = VAR;
+                place->u.value = child->value;
+            }
             return v->type;
         }
     } else if (!strcmp(child->name, "INT")) {
@@ -1624,6 +1663,12 @@ bool Args(Node *n, VarType v, Operand arg_list) {
     return Args(Exp_node->next->next, v->next_field, arg_list);
 }
 
+int getArraySize(Type t) {
+    if(t->type == ARRAY) {
+        return getTypeSize(t->type_info.array.element);
+    } else return 0;
+}
+
 int getTypeSize(Type t) {
     if (t->type == BASIC || t->type == CONSTANT) {
         // int 和 float 都是四字节
@@ -1631,10 +1676,13 @@ int getTypeSize(Type t) {
     } else if (t->type == ARRAY) {
         // 如果数组元素也是数组类型的,规定不支持高维数组
         if (t->type_info.array.element->type == ARRAY) {
-            printf(
-                "Fatal error: Two dimensional and higher dimensional arrays "
-                "are not supported\n");
-            exit(0);
+            // printf(
+            //     "Fatal error: Two dimensional and higher dimensional arrays "
+            //     "are not supported\n");
+            // exit(0);
+            int element_size = getTypeSize(t->type_info.array.element);
+            int count = t->type_info.array.size;
+            return element_size * count;
         } else {
             int element_size = getTypeSize(t->type_info.array.element);
             int count = t->type_info.array.size;
@@ -1688,42 +1736,42 @@ char *Type2String(Type t) {
     }
 }
 
-int String2Int(char *s) {  //允许16进制和8进制字符串转整数
-    if (s == NULL) {
-        printf("ERROR:NULL pointer in String2Int function\n");
-        return 0;
-    }
-    if (s[0] == '-') {
-        return -String2Int(s + 1);
-    }
-    int len = strlen(s);
-    int n = 0, tmp, i;
-    if (s[0] == '0') {
-        if (len == 1)
-            return 0;
-        else if (s[1] == 'x' || s[1] == 'X') {  // 16进制
-            for (i = 2; i < len; i++) {
-                if (s[i] >= 'A' &&
-                    s[i] <=
-                        'F')  //十六进制还要判断他是不是在A-F或者a-f之间a=10。。
-                    tmp = s[i] - 'A' + 10;
-                else if (s[i] >= 'a' && s[i] <= 'f')
-                    tmp = s[i] - 'a' + 10;
-                else
-                    tmp = s[i] - '0';
-                n = n * 16 + tmp;
-            }
-            return n;
-        } else {  // 8进制
-            for (i = 1; i < len; i++) {
-                tmp = s[i] - '0';
-                n = n * 8 + tmp;
-            }
-            return n;
-        }
-    } else
-        return atoi(s);
-}
+// int String2Int(char *s) {  //允许16进制和8进制字符串转整数
+//     if (s == NULL) {
+//         printf("ERROR:NULL pointer in String2Int function\n");
+//         return 0;
+//     }
+//     if (s[0] == '-') {
+//         return -String2Int(s + 1);
+//     }
+//     int len = strlen(s);
+//     int n = 0, tmp, i;
+//     if (s[0] == '0') {
+//         if (len == 1)
+//             return 0;
+//         else if (s[1] == 'x' || s[1] == 'X') {  // 16进制
+//             for (i = 2; i < len; i++) {
+//                 if (s[i] >= 'A' &&
+//                     s[i] <=
+//                         'F')  //十六进制还要判断他是不是在A-F或者a-f之间a=10。。
+//                     tmp = s[i] - 'A' + 10;
+//                 else if (s[i] >= 'a' && s[i] <= 'f')
+//                     tmp = s[i] - 'a' + 10;
+//                 else
+//                     tmp = s[i] - '0';
+//                 n = n * 16 + tmp;
+//             }
+//             return n;
+//         } else {  // 8进制
+//             for (i = 1; i < len; i++) {
+//                 tmp = s[i] - '0';
+//                 n = n * 8 + tmp;
+//             }
+//             return n;
+//         }
+//     } else
+//         return atoi(s);
+// }
 
 void printParam(VarType v) {
     while (v != NULL) {

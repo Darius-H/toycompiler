@@ -19,17 +19,6 @@ void insertInterCode(InterCode i) {
     }
 }
 
-void deleteInterCode(InterCode i) {
-    if (head == i && tail == i) {
-        head = NULL;
-        tail == NULL;
-    } else if (head == i) {
-        if (i->next) i->next->prev = NULL;
-        head = i->next;
-    }
-    // ... 暂时没用 优化代码时才有用
-}
-
 void printOperand(Operand o) {
     if (!o) {
         return;

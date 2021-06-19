@@ -1,6 +1,8 @@
 %{
-	#include"TreeNode.h"
-	#include"syntax.tab.h"
+	#include "TreeNode.h"
+	#include "syntax.tab.h"
+    #include "stdio.h"
+    #include "stdlib.h"
 	int errorFlag=1;
 	extern FILE* yyin;
 	static void comment(FILE* f);
@@ -23,13 +25,21 @@ HEX_CONSTANT -?{HP}{H}+
 OCT_CONSTANT -?0{O}+
 DEC_CONSTANT 0|-?{D_NOZERO}{D}*
 float {D}*\.{D}+{E}?
-integer {HEX_CONSTANT}|{OCT_CONSTANT}|{DEC_CONSTANT}
+dec_integer {DEC_CONSTANT}
+other_integer {HEX_CONSTANT}|{OCT_CONSTANT}
 
 %option yylineno
 
 %%
 {space} 	{/*space*/}
-{integer} 	{yylval.node=NewNode("INT",yytext);return INT;}
+{dec_integer} 	{yylval.node=NewNode("INT",yytext);return INT;}
+{other_integer} {   
+    int tmp = String2Int(yytext);
+    char *s = (char*)malloc(32);
+    sprintf(s, "%d", tmp);
+    yylval.node=NewNode("INT",s);
+    return INT;
+}
 {float} 	{/*printf("float:%s\n",yytext)*/yylval.node=NewNode("FLOAT",yytext);return FLOAT;}
 ";" 		{yylval.node=NewNode("SEMI",yytext);return SEMI;}
 "," 		{yylval.node=NewNode("COMMA",yytext);return COMMA;}
@@ -86,3 +96,41 @@ static void comment(FILE* f)//读取注释，直到注释结束
     } //字符串结尾
     yyerror("unterminated comment");
 }
+
+int String2Int(char *s) {  //允许16进制和8进制字符串转整数
+    if (s == NULL) {
+        printf("ERROR:NULL pointer in String2Int function\n");
+        return 0;
+    }
+    if (s[0] == '-') {
+        return -String2Int(s + 1);
+    }
+    int len = strlen(s);
+    int n = 0, tmp, i;
+    if (s[0] == '0') {
+        if (len == 1)
+            return 0;
+        else if (s[1] == 'x' || s[1] == 'X') {  // 16进制
+            for (i = 2; i < len; i++) {
+                if (s[i] >= 'A' &&
+                    s[i] <=
+                        'F')  //十六进制还要判断他是不是在A-F或者a-f之间a=10。。
+                    tmp = s[i] - 'A' + 10;
+                else if (s[i] >= 'a' && s[i] <= 'f')
+                    tmp = s[i] - 'a' + 10;
+                else
+                    tmp = s[i] - '0';
+                n = n * 16 + tmp;
+            }
+            return n;
+        } else {  // 8进制
+            for (i = 1; i < len; i++) {
+                tmp = s[i] - '0';
+                n = n * 8 + tmp;
+            }
+            return n;
+        }
+    } else
+        return atoi(s);
+}
+

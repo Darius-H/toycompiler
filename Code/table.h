@@ -104,10 +104,11 @@ bool Args(Node *n, VarType v, Operand arg_list);
 
 int getTypeSize(Type t);
 char *Type2String(Type t);
-int String2Int(char *s);
 void printParam(VarType v);
 void printArgs(Node *n);
 void printtype(Type t);
 void printNode(Node *n);
+
+int getArraySize(Type t);
 
 #endif
