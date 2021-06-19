@@ -97,7 +97,7 @@ VarType VarDec(Node *n, Type type, int src_type);
 void CompSt(Node *n, Type return_type);
 void StmtList(Node *n, Type return_type);
 void Stmt(Node *n, Type return_type);
-Type Exp(Node *n, Operand place);
+Type Exp(Node *n, Operand place, Operand offset);
 Type BinaryExp(Node *left, Node *op, Node *right, Operand place, Node *father);
 Type translate_Cond(Node *n, Operand label_true, Operand label_false);
 bool Args(Node *n, VarType v, Operand arg_list);

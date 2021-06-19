@@ -12,6 +12,7 @@ int add(struct Operands tmp) {
 int main() {
 	int n;
 	struct Operands op;
+	struct Operands b;
 	op.o1 = 1;
 	op.o2 = 2;
 	n = add(op);

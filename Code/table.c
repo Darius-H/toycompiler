@@ -576,7 +576,7 @@ VarType Dec(Node *n, Type type, int src_type) {
         place->u.value = v->name;
         if (child->next) child = child->next->next;  // Exp
         // 最后会把值赋给place
-        Type t = Exp(child, place);
+        Type t = Exp(child, place, NULL);
         if (t && type && !isTypeEqual(type, t)) {
             printf("Error type 5 at line %d: The type mismatched\n",
                    child->row);
@@ -739,7 +739,7 @@ void Stmt(Node *n, Type return_type) {
     Node *child = n->children;
     if (!child) return;
     if (!strcmp(child->name, "Exp")) {
-        Exp(child, NULL);
+        Exp(child, NULL, NULL);
         return;
     } else if (!strcmp(child->name, "CompSt")) {
         CompSt(child, return_type);
@@ -750,7 +750,7 @@ void Stmt(Node *n, Type return_type) {
         return_op->u.var_no = varNo++;
 
         child = child->next;
-        Type t = Exp(child, return_op);
+        Type t = Exp(child, return_op, NULL);
         if (return_type == NULL || t == NULL) return;
         if (!isTypeEqual(return_type, t)) {
             printf("Error type 8 at line %d: Return type mismatched\n",
@@ -897,7 +897,7 @@ void Stmt(Node *n, Type return_type) {
     |	FLOAT
     ;*/
 //返回值要说明Exp的值的类型
-Type Exp(Node *n, Operand place) {
+Type Exp(Node *n, Operand place, Operand offset) {
     Node *child = n->children;
     if (!child) return NULL;
     if (!strcmp(child->name, "Exp")) {
@@ -906,8 +906,16 @@ Type Exp(Node *n, Operand place) {
             Operand op1 = (Operand)malloc(sizeof(struct Operand_));
             op1->kind = TMP_VAR;
             op1->u.var_no = varNo++;
+            int flag = 0;
 
-            Type t1 = Exp(child, op1);
+            if(!offset) {
+                flag = 1;
+                offset = (Operand)malloc(sizeof(struct Operand_));
+                offset->kind = TMP_VAR;
+                offset->u.var_no = varNo++;
+            }
+            Type t1 = Exp(child, op1, offset);
+            Node *Exp_node = child;
 
             if (t1 == NULL) return NULL;
             if (t1->type != ARRAY) {
@@ -920,7 +928,7 @@ Type Exp(Node *n, Operand place) {
             Operand op2 = (Operand)malloc(sizeof(struct Operand_));
             op2->kind = TMP_VAR;
             op2->u.var_no = varNo++;
-            Type t2 = Exp(child, op2);
+            Type t2 = Exp(child, op2, NULL);
 
             if (t2 == NULL) return NULL;
             if (!((t2->type == BASIC || t2->type == CONSTANT) &&
@@ -956,8 +964,13 @@ Type Exp(Node *n, Operand place) {
             Operand res_op = (Operand)malloc(sizeof(struct Operand_));
             res_op->kind = TMP_VAR;
             res_op->u.var_no = varNo++;
-            place->kind = TMP_VAR_ADDRESS;
-            place->u.var = res_op;
+            if(flag) {
+                place->kind = TMP_VAR_ADDRESS;
+                place->u.var = res_op;
+            } else {
+                place->kind = TMP_VAR;
+                place->u.var_no = res_op->u.var_no;
+            }
             tmp_code->u.binop.result = res_op;
 
             insertInterCode(tmp_code);
@@ -1010,7 +1023,7 @@ Type Exp(Node *n, Operand place) {
             op1->kind = TMP_VAR;
             op1->u.var_no = varNo++;
 
-            Type t1 = Exp(child, op1);
+            Type t1 = Exp(child, op1, NULL);
             if (t1 == NULL) return NULL;
             if (t1->type != STRUCTURE) {
                 printf("Error type 13 at line %d: Illegal use of '.'\n",
@@ -1089,7 +1102,7 @@ Type Exp(Node *n, Operand place) {
             return BinaryExp(child, child->next, child->next->next, place, n);
         }
     } else if (!strcmp(child->name, "LP")) {
-        return Exp(child->next, place);
+        return Exp(child->next, place, NULL);
     } else if (!strcmp(child->name, "MINUS")) {
         Node *Exp_node = child->next;
 
@@ -1097,7 +1110,7 @@ Type Exp(Node *n, Operand place) {
         tmp_op->kind = TMP_VAR;
         tmp_op->u.var_no = varNo++;
 
-        Type t = Exp(Exp_node, tmp_op);
+        Type t = Exp(Exp_node, tmp_op, NULL);
         if (!t) return NULL;
         if (t->type != BASIC && t->type != CONSTANT) {
             printf("Error type 7 at line %d: Operands type mismatched\n",
@@ -1337,7 +1350,7 @@ Type BinaryExp(Node *left, Node *op, Node *right, Operand place, Node *father) {
             VarType tmp;
             if (left->children) tmp = findSymbol(left->children->value);
             if (tmp->type->type == BASIC)
-                left_type = Exp(left, tmp_op);
+                left_type = Exp(left, tmp_op, NULL);
             else {
                 printf(
                     "Error type 6 at line %d: The left-hand side of an "
@@ -1349,12 +1362,12 @@ Type BinaryExp(Node *left, Node *op, Node *right, Operand place, Node *father) {
         // 数组元素访问
         else if (!strcmp(left->children->name, "Exp") && left->children->next &&
                  !strcmp(left->children->next->name, "LB")) {
-            left_type = Exp(left, tmp_op);
+            left_type = Exp(left, tmp_op, NULL);
         }
         // 结构体特定域访问
         else if (!strcmp(left->children->name, "Exp") && left->children->next &&
                  !strcmp(left->children->next->name, "DOT")) {
-            left_type = Exp(left, tmp_op);
+            left_type = Exp(left, tmp_op, NULL);
         } else {
             printf(
                 "Error type 6 at line %d: The left-hand side of an assignment "
@@ -1367,7 +1380,7 @@ Type BinaryExp(Node *left, Node *op, Node *right, Operand place, Node *father) {
         Operand right_op = (Operand)malloc(sizeof(struct Operand_));
         right_op->kind = TMP_VAR;
         right_op->u.var_no = varNo++;
-        right_type = Exp(right, right_op);
+        right_type = Exp(right, right_op, NULL);
         if (!left_type || !right_type) return NULL;
         if (isTypeEqual(left_type, right_type)) {
             // 此时右值的结果储存在right_op中
@@ -1400,8 +1413,8 @@ Type BinaryExp(Node *left, Node *op, Node *right, Operand place, Node *father) {
         op2->kind = TMP_VAR;
         op2->u.var_no = varNo++;
 
-        Type left_type = Exp(left, op1);
-        Type right_type = Exp(right, op2);
+        Type left_type = Exp(left, op1, NULL);
+        Type right_type = Exp(right, op2, NULL);
         if (!left_type || !right_type) return NULL;
         if ((left_type->type == BASIC || left_type->type == CONSTANT) &&
             (right_type->type == BASIC || right_type->type == CONSTANT)) {
@@ -1512,8 +1525,8 @@ Type translate_Cond(Node *n, Operand label_true, Operand label_false) {
 
             Node *exp1_node = child;
             Node *exp2_node = op_node->next;
-            Type t1 = Exp(exp1_node, op1);
-            Type t2 = Exp(exp2_node, op2);
+            Type t1 = Exp(exp1_node, op1, NULL);
+            Type t2 = Exp(exp2_node, op2, NULL);
             if (!t1 || !t2) return NULL;
 
             if ((t1->type == BASIC || t1->type == CONSTANT) &&
@@ -1610,7 +1623,7 @@ Type translate_Cond(Node *n, Operand label_true, Operand label_false) {
         Operand op2 = (Operand)malloc(sizeof(struct Operand_));
         op1->kind = TMP_VAR;
         op1->u.var_no = varNo++;
-        Type op1_type = Exp(n, op1);
+        Type op1_type = Exp(n, op1, NULL);
         op2->kind = CONSTANT_OP;
         op2->u.value = malloc(10);
         sprintf(op2->u.value, "%d", 0);
@@ -1649,7 +1662,7 @@ bool Args(Node *n, VarType v, Operand arg_list) {
     tmp_op->u.var_no = varNo++;
 
     Node *Exp_node = n->children;
-    Type t = Exp(Exp_node, tmp_op);
+    Type t = Exp(Exp_node, tmp_op, NULL);
     tmp_op->next = arg_list->next;
     arg_list->next = tmp_op;
     // 如果exp返回NULL说明出现了错误，此处不用重复报错，直接返回
@@ -1782,7 +1795,7 @@ void printParam(VarType v) {
 
 void printArgs(Node *n) {
     Node *child = n->children;
-    Type t = Exp(child, NULL);
+    Type t = Exp(child, NULL, NULL);
     if (!t) return;
     printf("%s", Type2String(t));
     child = child->next;
